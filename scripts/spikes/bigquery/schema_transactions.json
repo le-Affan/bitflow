@@ -1,0 +1,202 @@
+{
+  "creationTime": "1786049607772",
+  "etag": "3NetYXAuQZBoxJvfeE6bIQ==",
+  "id": "bigquery-public-data:crypto_bitcoin.transactions",
+  "kind": "bigquery#table",
+  "lastModifiedTime": "1790013942639",
+  "location": "US",
+  "numActiveLogicalBytes": "0",
+  "numBytes": "0",
+  "numLongTermBytes": "0",
+  "numLongTermLogicalBytes": "0",
+  "numRows": "0",
+  "numTotalLogicalBytes": "0",
+  "schema": {
+    "fields": [
+      {
+        "mode": "NULLABLE",
+        "name": "hash",
+        "type": "STRING"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "size",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "virtual_size",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "version",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "lock_time",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "block_hash",
+        "type": "STRING"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "block_number",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "block_timestamp",
+        "type": "TIMESTAMP"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "block_timestamp_month",
+        "type": "DATE"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "input_count",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "output_count",
+        "type": "INTEGER"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "input_value",
+        "type": "NUMERIC"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "output_value",
+        "type": "NUMERIC"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "is_coinbase",
+        "type": "BOOLEAN"
+      },
+      {
+        "mode": "NULLABLE",
+        "name": "fee",
+        "type": "NUMERIC"
+      },
+      {
+        "fields": [
+          {
+            "mode": "NULLABLE",
+            "name": "index",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "spent_transaction_hash",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "spent_output_index",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "script_asm",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "script_hex",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "sequence",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "required_signatures",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "type",
+            "type": "STRING"
+          },
+          {
+            "mode": "REPEATED",
+            "name": "addresses",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "value",
+            "type": "NUMERIC"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "inputs",
+        "type": "RECORD"
+      },
+      {
+        "fields": [
+          {
+            "mode": "NULLABLE",
+            "name": "index",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "script_asm",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "script_hex",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "required_signatures",
+            "type": "INTEGER"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "type",
+            "type": "STRING"
+          },
+          {
+            "mode": "REPEATED",
+            "name": "addresses",
+            "type": "STRING"
+          },
+          {
+            "mode": "NULLABLE",
+            "name": "value",
+            "type": "NUMERIC"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "outputs",
+        "type": "RECORD"
+      }
+    ]
+  },
+  "selfLink": "https://bigquery.googleapis.com/bigquery/v2/projects/bigquery-public-data/datasets/crypto_bitcoin/tables/transactions",
+  "tableReference": {
+    "datasetId": "crypto_bitcoin",
+    "projectId": "bigquery-public-data",
+    "tableId": "transactions"
+  },
+  "type": "VIEW",
+  "view": {
+    "privacyPolicy": {}
+  }
+}

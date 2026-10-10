@@ -1,0 +1,67 @@
+{
+ "2025-11-27": {
+  "transactions": 403825,
+  "outputs": 1034951,
+  "out_zero_addr": 126890,
+  "out_multi_addr": 2610,
+  "out_one_addr": 905451,
+  "inputs": 1016238,
+  "in_no_addr": 143,
+  "coinbase_inputs": 143,
+  "nonstd_prefixed": 0,
+  "fractional": 0,
+  "blocks": "143 (925343-925485)"
+ },
+ "2026-01-24": {
+  "transactions": 289144,
+  "outputs": 756795,
+  "out_zero_addr": 77357,
+  "out_multi_addr": 260,
+  "out_one_addr": 679178,
+  "inputs": 703553,
+  "in_no_addr": 98,
+  "coinbase_inputs": 98,
+  "nonstd_prefixed": 0,
+  "fractional": 0,
+  "blocks": "98 (933583-933680)"
+ },
+ "2026-05-15": {
+  "transactions": 618617,
+  "outputs": 1470125,
+  "out_zero_addr": 340287,
+  "out_multi_addr": 222,
+  "out_one_addr": 1129616,
+  "inputs": 1081514,
+  "in_no_addr": 145,
+  "coinbase_inputs": 145,
+  "nonstd_prefixed": 0,
+  "fractional": 0,
+  "blocks": "145 (949434-949578)"
+ },
+ "2026-08-15": {
+  "transactions": 719514,
+  "outputs": 1621021,
+  "out_zero_addr": 489098,
+  "out_multi_addr": 54,
+  "out_one_addr": 1131869,
+  "inputs": 1106818,
+  "in_no_addr": 265,
+  "coinbase_inputs": 145,
+  "nonstd_prefixed": 0,
+  "fractional": 0,
+  "blocks": "145 (962499-962643)"
+ },
+ "2026-10-05": {
+  "transactions": 904518,
+  "outputs": 2014742,
+  "out_zero_addr": 629820,
+  "out_multi_addr": 11,
+  "out_one_addr": 1384911,
+  "inputs": 1380610,
+  "in_no_addr": 177,
+  "coinbase_inputs": 177,
+  "nonstd_prefixed": 0,
+  "fractional": 0,
+  "blocks": "177 (969924-970101)"
+ }
+}

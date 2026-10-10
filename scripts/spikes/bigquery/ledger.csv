@@ -1,0 +1,7 @@
+file,bytes_processed bytes_billed cache_hit,job
+05_representation_probe.sql,277012417 277872640 False,bqjob_r4a0c007860d50927_000001a127ec04e0_1
+10_rank_day_v1.sql,334852339 335544320 False,bqjob_r780fe181b413f64e_000001a127ec6df1_1
+30_day_counts.sql,222140047 222298112 False,bqjob_re0a30f9352398e3_000001a127ed932d_1
+30_day_counts.sql,198588549 199229440 False,bqjob_r7b1bb0513e18ec1a_000001a127edb84a_1
+10_rank_day_v1.sql,368427031 369098752 False,bqjob_rfde9f4fd9a93fcd_000001a127ee16c3_1
+40_freshness.sql,39168 10485760 False,bqjob_r544c21a4f5b5a85f_000001a127ef8553_1
