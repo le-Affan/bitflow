@@ -12,33 +12,34 @@ const LOADER_DELAY_MS = 150;
 
 function PanelShell(props: {
   title: string;
-  onBack: () => void;
+  onBack?: () => void; // only second-level panels (transaction) have a back arrow
   onClose: () => void;
-  closing?: boolean;
+  contentKey: string; // a new key crossfades the body (content change inside an open panel)
   children: React.ReactNode;
 }) {
-  const { title, onBack, onClose, closing, children } = props;
+  const { title, onBack, onClose, contentKey, children } = props;
   return (
-    <aside className={`panel${closing ? " closing" : ""}`} aria-label={title} data-testid="side-panel">
-      <header className="panel-header">
-        <button type="button" className="icon-button back" onClick={onBack} aria-label="Back" title="Back">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"
-               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-        </button>
+    <aside className="panel" aria-label={title} data-testid="side-panel">
+      <header className={`panel-header${onBack ? " with-back" : ""}`}>
+        {onBack && (
+          <button type="button" className="icon-button back" onClick={onBack} aria-label="Back" title="Back">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
+          </button>
+        )}
         <h2>{title}</h2>
         <button type="button" className="close" onClick={onClose} aria-label="Close panel">×</button>
       </header>
-      <div className="panel-body">{children}</div>
+      <div className="panel-body" key={contentKey}>{children}</div>
     </aside>
   );
 }
 
-export function NodePanel(props: { day: string; address: string; onClose: () => void; closing?: boolean }) {
-  const { day, address, onClose, closing } = props;
+export function NodePanel(props: { day: string; address: string; onClose: () => void }) {
+  const { day, address, onClose } = props;
   const s = useAsync(() => api.address(day, address), [day, address]);
   return (
-    // Top level: Back closes the panel and clears the selection, like ×.
-    <PanelShell title="Address" onBack={onClose} onClose={onClose} closing={closing}>
+    <PanelShell title="Address" onClose={onClose} contentKey={`node:${address}`}>
       <FullValue value={address} />
       <div className="panel-content">
         {s.status === "loading" && <Loading delayMs={LOADER_DELAY_MS} />}
@@ -68,23 +69,22 @@ function Chevron() {
   );
 }
 
-export function EdgePanel(props: { day: string; source: string; target: string; onClose: () => void; closing?: boolean }) {
-  const { day, source, target, onClose, closing } = props;
+export function EdgePanel(props: { day: string; source: string; target: string; onClose: () => void }) {
+  const { day, source, target, onClose } = props;
   const [txid, setTxid] = useState<string | null>(null);
   const s = useAsync(() => api.edge(day, source, target), [day, source, target]);
   useEffect(() => setTxid(null), [day, source, target]); // a different edge starts at its list
 
   if (txid) {
     return (
-      <PanelShell title="Transaction" onBack={() => setTxid(null)} onClose={onClose} closing={closing}>
+      <PanelShell title="Transaction" onBack={() => setTxid(null)} onClose={onClose} contentKey={`tx:${txid}`}>
         <TransactionDetails day={day} txid={txid} />
       </PanelShell>
     );
   }
   const n = s.status === "success" ? s.data.transactions.length : null;
   return (
-    // Top level: Back closes the panel and clears the selection, like ×.
-    <PanelShell title="Edge" onBack={onClose} onClose={onClose} closing={closing}>
+    <PanelShell title="Edge" onClose={onClose} contentKey={`edge:${source}>${target}`}>
       <div className="edge-route">
         <AddressChip role="From" value={source} />
         <svg className="route-arrow" viewBox="0 0 24 24" width="18" height="18" aria-label="to" role="img" fill="none"

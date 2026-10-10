@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError, api, isEmptyState } from "./api/client";
 import { ControlsPanel } from "./components/ControlsPanel";
@@ -8,6 +8,8 @@ import { EmptyState, ErrorBox, Loading } from "./components/Status";
 import { useAsync } from "./hooks/useAsync";
 import { todayUtc, type Ymd } from "./lib/dates";
 import { applyTheme, loadTheme, saveTheme, type Theme } from "./lib/theme";
+
+const PANEL_EXIT_MS = 260; // matches the CSS close transition (250 ms) plus a frame
 
 const EMPTY_TEXT = "No day has been ingested yet. The graph appears after the first daily ingestion succeeds.";
 
@@ -50,24 +52,21 @@ function NothingIngested() {
 
 function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary | null) => void; theme: Theme }) {
   const graph = useAsync(() => api.graph(day), [day]);
-  const [selection, setSelectionState] = useState<GraphSelection>(null);
-  const [closing, setClosing] = useState(false);
-  const closeTimer = useRef<number | undefined>(undefined);
+  const [selection, setSelection] = useState<GraphSelection>(null);
   const [counts, setCounts] = useState<RenderedCounts | null>(null);
-
-  const setSelection = useCallback((next: GraphSelection) => {
-    window.clearTimeout(closeTimer.current);
-    setClosing(false);
-    setSelectionState(next);
-  }, []);
-  // Closing slides the panel out first (CSS), then removes it. Instant with reduced motion.
-  const closePanel = useCallback(() => {
-    if (prefersReducedMotion()) return setSelection(null);
-    setClosing(true);
-    window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setSelection(null), 180);
-  }, [setSelection]);
-  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  // The panel slot stays mounted and animates its width. While it closes, the last selection keeps being shown
+  // so the content stays visible during the exit; it is dropped once the exit animation is over.
+  const [lastShown, setLastShown] = useState<GraphSelection>(null);
+  useEffect(() => {
+    if (selection) {
+      setLastShown(selection);
+      return;
+    }
+    const t = window.setTimeout(() => setLastShown(null), prefersReducedMotion() ? 0 : PANEL_EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [selection]);
+  const shown = selection ?? lastShown;
+  const closePanel = useCallback(() => setSelection(null), []);
   const data = graph.status === "success" ? graph.data : null;
 
   useEffect(() => {
@@ -76,14 +75,13 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
   }, [data, counts, onSummary]);
 
   const panel = useMemo(() => {
-    if (!selection || !data) return null;
-    return selection.kind === "node" ? (
-      <NodePanel day={data.day} address={selection.address} onClose={closePanel} closing={closing} />
+    if (!shown || !data) return null;
+    return shown.kind === "node" ? (
+      <NodePanel day={data.day} address={shown.address} onClose={closePanel} />
     ) : (
-      <EdgePanel day={data.day} source={selection.source}
-                 target={selection.target} onClose={closePanel} closing={closing} />
+      <EdgePanel day={data.day} source={shown.source} target={shown.target} onClose={closePanel} />
     );
-  }, [selection, data, closing, closePanel]);
+  }, [shown, data, closePanel]);
 
   if (graph.status === "loading") return <Loading label="Loading graph…" />;
   if (graph.status === "error") {
@@ -92,7 +90,7 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
     return <ErrorBox error={graph.error} onRetry={graph.reload} what="the graph" />;
   }
   return (
-    <div className={`workspace${panel ? " with-panel" : ""}`}>
+    <div className="workspace">
       <section className="graph-section">
         <GraphView
           graph={graph.data}
@@ -104,7 +102,9 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
           theme={theme}
         />
       </section>
-      {panel}
+      <div className={`panel-slot${selection ? " open" : ""}`} aria-hidden={!selection} inert={!selection}>
+        <div className="panel-slot-inner">{panel}</div>
+      </div>
     </div>
   );
 }
