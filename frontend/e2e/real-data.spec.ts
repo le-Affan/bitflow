@@ -1,5 +1,5 @@
 import { apiJson, expect, ingestedDays, test } from "./fixtures";
-import { graphInfo, openEdge, pointOf, SHOTS, waitForGraph } from "./helpers";
+import { graphInfo, openEdge, pickerButton, pointOf, SHOTS, waitForGraph } from "./helpers";
 
 // Checks the rendered page against whatever the real API serves for the latest ingested day.
 // No data values are hardcoded: every expectation is derived from API responses at test time.
@@ -44,7 +44,7 @@ test("latest ingested day: rendered graph and panels match the API", async ({ pa
   await page.goto("/");
   await waitForGraph(page);
   const wall = Date.now() - navStart;
-  await expect(page.getByTestId("day-select")).toHaveValue(day);
+  await expect(pickerButton(page)).toHaveAttribute("data-value", day);
   const info = await graphInfo(page);
   console.log(`DAY ${day}: API nodes=${expectedNodes} edges=${expectedEdges}; rendered nodes=${info.nodes} edges=${info.edges}`);
   console.log(`TIMING graph rendered ${Math.round(info.renderedAt)} ms after navigation start (layout ${info.layoutMs} ms, wall ${wall} ms)`);

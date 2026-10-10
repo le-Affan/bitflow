@@ -1,5 +1,5 @@
 import { expect, ingestedDays, test } from "./fixtures";
-import { allNodesInView, graphInfo, hubId, pointOf, SHOTS, waitForGraph } from "./helpers";
+import { allNodesInView, graphInfo, hubId, pickDate, pointOf, SHOTS, waitForGraph } from "./helpers";
 
 // Smoke tests against the real running stack. They use whatever days are ingested and assert no specific
 // values; with no day ingested they skip.
@@ -7,7 +7,7 @@ test.beforeEach(async ({ request }) => {
   test.skip((await ingestedDays(request)).length === 0, "No day has been ingested yet; smoke tests need one day.");
 });
 
-test("graph, node panel, edge panel, transaction details, zoom, day selector", async ({ page }) => {
+test("graph, node panel, edge panel, transaction details, zoom, day selector", async ({ page, request }) => {
   await page.goto("/");
   await waitForGraph(page);
   const info = await graphInfo(page);
@@ -73,12 +73,11 @@ test("graph, node panel, edge panel, transaction details, zoom, day selector", a
   await page.getByRole("button", { name: "Reset view" }).click();
   expect(await allNodesInView(page)).toBe(true);
 
-  // Day selector: pick each listed day; the graph re-renders for it.
-  const select = page.getByTestId("day-select");
-  const values = await select.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  for (const v of values) {
-    await select.selectOption(v);
-    await expect(select).toHaveValue(v);
+  // Day selection (calendar in the controls panel): pick each ingested day; the graph re-renders for it.
+  const days = await ingestedDays(request);
+  for (const { date } of days) {
+    await pickDate(page, date);
+    await expect(page.getByTestId("summary-day")).toHaveText(date);
     await waitForGraph(page);
   }
   await page.screenshot({ path: `${SHOTS}/desktop-graph.png` });
@@ -90,6 +89,8 @@ test("narrow viewport layout", async ({ page }) => {
   await waitForGraph(page);
   await page.screenshot({ path: `${SHOTS}/narrow-graph.png` });
   const hub = await hubId(page);
+  // The controls panel stacks above the graph on narrow screens: bring the graph into view first.
+  await page.getByTestId("graph-canvas").scrollIntoViewIfNeeded();
   const p = await pointOf(page, "node", hub);
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId("address-facts")).toBeVisible();

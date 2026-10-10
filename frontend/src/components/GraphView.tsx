@@ -55,6 +55,18 @@ declare global {
   }
 }
 
+/** Zoom change per mouse-wheel notch (deltaY = 100 px): 0.2 = 20 %. Adjust here. */
+export const WHEEL_ZOOM_STEP = 0.2;
+const WHEEL_NOTCH_PX = 100;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+
+/** Wheel delta in "notches", normalised across pixel, line and page delta modes. */
+function wheelNotches(e: WheelEvent): number {
+  const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+  return Math.max(-5, Math.min(5, px / WHEEL_NOTCH_PX)); // cap one event to 5 notches
+}
+
 // Build-time constant: Vite replaces it, so production bundles drop the inspector code.
 const E2E_INSPECTOR = import.meta.env.VITE_E2E_INSPECTOR === "true";
 
@@ -164,6 +176,7 @@ function separateOverlaps(cy: cytoscape.Core, minDistance: number, passes = 30):
 
 export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRendered }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const handlers = useRef({ onNodeClick, onEdgeClick, onRendered });
@@ -184,9 +197,8 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
       ],
       style: STYLE,
       layout: { name: "preset" },
-      minZoom: 0.05,
-      maxZoom: 8,
-      wheelSensitivity: 0.3,
+      minZoom: MIN_ZOOM,
+      maxZoom: MAX_ZOOM,
       boxSelectionEnabled: false,
       autoungrabify: true,
       selectionType: "single",
@@ -222,9 +234,31 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
     cy.on("tap", "node", (evt) => handlers.current.onNodeClick(evt.target.id()));
     cy.on("tap", "edge", (evt) => handlers.current.onEdgeClick(evt.target.data("source"), evt.target.data("target")));
 
-    // Cytoscape only tracks window resizes; the side panel changes the container size too.
-    const resizeObserver = new ResizeObserver(() => cy.resize());
+    // Cytoscape only tracks window resizes; the side panels change the container size too. Keep the
+    // point that was in the middle of the view in the middle after a resize.
+    let size = { w: containerRef.current.clientWidth, h: containerRef.current.clientHeight };
+    const resizeObserver = new ResizeObserver(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const next = { w: el.clientWidth, h: el.clientHeight };
+      if (next.w === size.w && next.h === size.h) return;
+      cy.resize();
+      cy.panBy({ x: (next.w - size.w) / 2, y: (next.h - size.h) / 2 });
+      size = next;
+    });
     resizeObserver.observe(containerRef.current);
+
+    // Wheel zoom: a fixed step per notch, centred on the mouse. Captured on the wrapper before Cytoscape's
+    // own (much slower) wheel handler, which is stopped; pinch zoom on touch screens stays Cytoscape's.
+    const wrap = wrapRef.current!;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = containerRef.current!.getBoundingClientRect();
+      const level = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cy.zoom() * (1 + WHEEL_ZOOM_STEP) ** -wheelNotches(e)));
+      cy.zoom({ level, renderedPosition: { x: e.clientX - rect.left, y: e.clientY - rect.top } });
+    };
+    wrap.addEventListener("wheel", onWheel, { capture: true, passive: false });
 
     const renderedAt = performance.now();
     if (E2E_INSPECTOR) window.__bitflowGraph = {
@@ -271,6 +305,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
     handlers.current.onRendered?.({ nodes: cy.nodes().length, edges: cy.edges().length, layoutMs });
 
     return () => {
+      wrap.removeEventListener("wheel", onWheel, { capture: true });
       resizeObserver.disconnect();
       setTooltip(null);
       cyRef.current = null;
@@ -295,7 +330,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
   };
 
   return (
-    <div className="graph-wrap">
+    <div className="graph-wrap" ref={wrapRef}>
       <div ref={containerRef} className="graph-canvas" data-testid="graph-canvas" aria-label="Transaction graph" role="img" />
       {tooltip && (
         <div className="graph-tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>

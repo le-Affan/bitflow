@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:tz": "TZ=UTC vitest run && TZ=Asia/Kolkata vitest run && TZ=America/Los_Angeles vitest run"
   },
   "dependencies": {
     "cytoscape": "3.34.3",

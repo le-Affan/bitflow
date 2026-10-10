@@ -82,3 +82,37 @@ export async function openEdge(page: Page, id: string, expectedTooltip: string):
   if (!ok) throw new Error(`edge ${id} is not rendered`);
   return "inspector-tap";
 }
+
+/** Today's date in UTC as YYYY-MM-DD, computed independently of the app's date helpers. */
+export function utcToday(offsetDays = 0): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offsetDays)).toISOString().slice(0, 10);
+}
+
+export function pickerButton(page: Page, testId = "day-picker") {
+  return page.getByTestId(testId).locator(".date-picker-button");
+}
+
+/** Opens the calendar of a date picker and navigates to the month of `ymd` (via the year field and month select). */
+export async function openCalendarAt(page: Page, ymd: string, testId = "day-picker") {
+  const root = page.getByTestId(testId);
+  if ((await root.getByRole("dialog").count()) === 0) await pickerButton(page, testId).click();
+  const dialog = root.getByRole("dialog");
+  const year = dialog.getByLabel("Year", { exact: true });
+  await year.fill(String(Number(ymd.slice(0, 4))));
+  await year.press("Enter");
+  await dialog.getByLabel("Month", { exact: true }).selectOption(String(Number(ymd.slice(5, 7))));
+  return dialog;
+}
+
+/** Selects a date in a date picker by clicking its day cell. */
+export async function pickDate(page: Page, ymd: string, testId = "day-picker") {
+  const dialog = await openCalendarAt(page, ymd, testId);
+  await dialog.locator(`button[data-date="${ymd}"]`).click();
+  await expect(pickerButton(page, testId)).toHaveAttribute("data-value", ymd);
+}
+
+/** Waits until the controls panel has finished loading the list of ingested days (the default day is then set). */
+export async function waitForDays(page: Page) {
+  await expect(page.getByTestId("controls-panel")).not.toContainText("Loading ingested days");
+}

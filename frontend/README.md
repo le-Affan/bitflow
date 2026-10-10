@@ -5,7 +5,7 @@ React + TypeScript (Vite) visualiser for one UTC day at a time. It talks only to
 ```bash
 # from the repository root
 docker compose up -d --build                                # frontend on 127.0.0.1:${FRONTEND_HOST_PORT:-3000}
-docker compose --profile test run --rm --build frontend-test  # unit tests (Vitest)
+docker compose --profile test run --rm --build frontend-test  # unit tests (Vitest), under 3 time zones
 docker compose --profile e2e run --rm --build frontend-e2e    # Playwright against the running backend
 E2E_MOCK_EMPTY_API=1 docker compose --profile e2e run --rm frontend-e2e   # same suite, API mocked as "nothing ingested"
 ```
@@ -14,4 +14,6 @@ The end-to-end tests run against a separate build, `frontend-e2e-app` (127.0.0.1
 
 `CORS_ALLOW_ORIGINS` (backend) must include the frontend's origin (and the e2e origin, see below). Playwright screenshots go to `screenshots/` (gitignored).
 
-For local development without Docker: `npm ci`, `npm run dev`, `npm test`, `npm run typecheck`.
+For local development without Docker: `npm ci`, `npm run dev`, `npm test` (or `npm run test:tz` for the three time zones), `npm run typecheck`.
+
+All days are UTC calendar days handled as `YYYY-MM-DD` strings (`src/lib/dates.ts`); never convert them through a local-time `Date`. The calendar disables days after today (UTC).

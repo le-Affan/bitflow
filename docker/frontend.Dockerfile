@@ -5,9 +5,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 
-# Unit tests (Vitest): docker compose --profile test run --rm frontend-test
+# Unit tests (Vitest) under TZ=UTC, Asia/Kolkata and America/Los_Angeles:
+# docker compose --profile test run --rm frontend-test
 FROM build AS test
-CMD ["npm", "test"]
+CMD ["npm", "run", "test:tz"]
 
 FROM build AS dist
 # Vite inlines VITE_* variables at build time, so the API base URL is a build argument.
