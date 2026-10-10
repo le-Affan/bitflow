@@ -54,5 +54,41 @@ services:
       postgres:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      target: serve
+      args:
+        # Baked into the static build: the URL the browser uses to reach the backend.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+  # Frontend unit tests (Vitest). Not started by `docker compose up`.
+  frontend-test:
+    profiles: ["test"]
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      target: test
+
+  # Playwright smoke tests against the running stack (host network, so 127.0.0.1 is the host).
+  frontend-e2e:
+    profiles: ["e2e"]
+    image: mcr.microsoft.com/playwright:v1.64.0-noble
+    network_mode: host
+    working_dir: /work
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    environment:
+      HOME: /tmp
+      E2E_BASE_URL: http://127.0.0.1:${FRONTEND_HOST_PORT:-3000}
+      E2E_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+    volumes:
+      - ./frontend:/work:z
+    command: ["npx", "playwright", "test"]
+
 volumes:
   postgres-data:

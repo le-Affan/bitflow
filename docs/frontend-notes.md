@@ -1,0 +1,5 @@
+# Frontend notes
+
+**Graph library: Cytoscape.js** (canvas, 3.34). It covers every requirement without plugins: directed edges with arrowheads, `bezier` curves that keep A→B and B→A apart, tap and hover events on nodes and edges, built-in zoom and pan, and a built-in force layout (`cose`). It renders the 342 nodes and 843 edges of 2026-10-09 at 60 fps while panning and zooming (headless Chromium, measured). It is wrapped in `frontend/src/components/GraphView.tsx` and nothing else imports it.
+**Rejected:** react-force-graph-2d / force-graph (continuous d3 simulation keeps moving nodes, needs hand-set curvature for opposite edges, and thin edges are hard to click); Sigma.js + graphology (WebGL is overkill at this size, and curved and opposite edges need extra packages); vis-network (heavier, older API, weaker TypeScript support).
+**Hub handling:** on 2026-10-09 two hubs (degree 211 and 205) share almost all their neighbours, so the force layout put them about 6 px apart. A post-layout pass enforces a minimum node spacing so both stay visible and clickable.

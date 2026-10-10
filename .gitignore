@@ -241,3 +241,7 @@ docker-compose.override.yml
 compose.override.yml
 .docker/
 CLAUDE.md
+# Frontend test output
+frontend/screenshots/
+frontend/test-results/
+frontend/playwright-report/
