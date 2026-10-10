@@ -30,10 +30,19 @@ There is **no historical backfill and no historical dataset** in the MVP. The fi
 
 ### Ranking and eligibility
 
-- Ranking value of a transaction = its **largest output that has a standard address**.
-- A transaction is **eligible** only if it has at least one input with an address, at least one output with an address, and at least one edge remains after dropping self-loops (see Graph model). Coinbase transactions are therefore excluded.
+- Ranking value of a transaction = its **largest output that has a standard address**. *(superseded, see "Ranking update" below)*
+- A transaction is **eligible** only if it has at least one input with an address, at least one output with an address, and at least one edge remains after dropping self-loops (see Graph model). Coinbase transactions are therefore excluded. *(superseded, see "Ranking update" below)*
 - The top 100 are chosen among eligible transactions only. **Ties at rank 100** are broken by tx id in ascending alphabetical order.
 - Outputs without an address (OP_RETURN, non-standard scripts) do not count for ranking and are not shown.
+
+### Ranking update (decided 2026-10-11)
+
+On 2026-10-09, 96 of the 100 stored transactions were ranked by an output going back to one of their own input addresses (usually change). The ranking now reflects money that actually moves to another address:
+
+- **Ranking value** of a transaction = its largest output that (a) has a standard address and (b) goes to an address that is **not** among that same transaction's input addresses.
+- A transaction is **eligible** only if it has at least one addressed input and at least one such output. Coinbase stays excluded.
+- Top 100 by ranking value, ties broken by tx id ascending. Everything else is unchanged: UTC day, all-or-nothing storage, integer satoshis, edge rules (every input address to every output address, self-loop pairs dropped, repeated pairs aggregated), and the stored data (the 100 transactions with all their addressed inputs and outputs, including change outputs).
+- **Known limitation:** change sent to a brand-new address cannot be told apart from a real payment without address clustering, which the MVP excludes. Such change can still set a transaction's ranking value.
 
 ### Graph model
 

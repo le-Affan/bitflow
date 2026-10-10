@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
-from app.domain.chain import ChainBlock, ChainTransaction
+from app.domain.chain import ChainBlock, ChainOutput, ChainTransaction
 from app.domain.models import IngestedDay, Transaction, TxInput, TxOutput
 from app.ingestion.source import BlockSource, SourceStats
 from app.repository import DayRepository
@@ -39,17 +39,19 @@ def validate_target_day(day: date, now: datetime) -> None:
         raise InvalidTargetDayError(f"{day} is not a complete UTC day in the past (now: {now.isoformat()})")
 
 
-def has_edge(tx: ChainTransaction) -> bool:
-    """True if at least one input address -> output address pair remains after dropping self-loops."""
+def outward_outputs(tx: ChainTransaction) -> list[ChainOutput]:
+    """Outputs with a standard address that is not one of the transaction's own input addresses.
+
+    These are the outputs that move money to another address. Change sent back to an input address is excluded;
+    change sent to a brand-new address cannot be told apart from a payment (known limitation, no clustering).
+    """
     in_addrs = {i.address for i in tx.inputs if i.address}
-    if not in_addrs:
-        return False
-    return any(o.address and (in_addrs - {o.address}) for o in tx.outputs)
+    return [o for o in tx.outputs if o.address and o.address not in in_addrs]
 
 
 def ranking_value(tx: ChainTransaction) -> int | None:
-    """Largest output that has a standard address, in satoshis. None if no output has one."""
-    values = [o.value_sat for o in tx.outputs if o.address]
+    """Largest outward output (see `outward_outputs`), in satoshis. None if there is none."""
+    values = [o.value_sat for o in outward_outputs(tx)]
     return max(values) if values else None
 
 
@@ -104,8 +106,8 @@ class IngestionReport:
     blocks_excluded: list[int] = field(default_factory=list)  # fetched, own timestamp outside the day
     transactions_seen: int = 0
     coinbase_excluded: int = 0
-    no_address_excluded: int = 0  # no addressed input or no addressed output
-    no_edge_excluded: int = 0
+    no_addressed_input_excluded: int = 0
+    no_outward_output_excluded: int = 0  # no addressed output to an address outside the tx's inputs
     eligible: int = 0
     inputs_without_address: int = 0
     outputs_without_address: int = 0
@@ -133,12 +135,12 @@ def _process_block(block: ChainBlock, top: RunningTop, report: IngestionReport) 
         if tx.is_coinbase:
             report.coinbase_excluded += 1
             continue
-        value = ranking_value(tx)
-        if value is None or not any(i.address for i in tx.inputs):
-            report.no_address_excluded += 1
+        if not any(i.address for i in tx.inputs):
+            report.no_addressed_input_excluded += 1
             continue
-        if not has_edge(tx):
-            report.no_edge_excluded += 1
+        value = ranking_value(tx)
+        if value is None:
+            report.no_outward_output_excluded += 1
             continue
         report.eligible += 1
         key = rank_key(value, tx.txid)

@@ -9,9 +9,10 @@ from app.ingestion.core import (
     InvalidTargetDayError,
     NoEligibleTransactionsError,
     RunningTop,
-    has_edge,
+    outward_outputs,
     ingest_day,
     rank_key,
+    ranking_value,
 )
 from app.ingestion.source import BlockSource, SourceError
 from tests.fixtures import fixture_tx
@@ -93,17 +94,48 @@ def test_stored_tx_keeps_only_addressed_outputs(repo):
     assert [(o.position, o.address) for o in tx.outputs] == [(1, "fx-a")]
 
 
-def test_self_loop_dropped_but_other_edge_keeps_tx_eligible():
-    assert has_edge(fx_tx(1, ins=("A",), outs=(("A", 900), ("B", 100))))
-    assert has_edge(fx_tx(2, ins=("A", "B"), outs=(("A", 900),)))  # B -> A remains
-    assert not has_edge(fx_tx(3, ins=("A",), outs=(("A", 900),)))
+def test_output_to_own_input_address_does_not_count_for_ranking(repo):
+    # 10^9 sat goes back to the input address A (change); only the 5 sat to B moves money.
+    change_heavy = fx_tx(1, ins=("A",), outs=(("A", 10**9), ("B", 5)))
+    assert ranking_value(change_heavy) == 5
+    fillers = [fx_tx(100 + n, value=1_000) for n in range(100)]
+    run(fx_chain([fx_block(0, 60, (change_heavy, *fillers))]), repo)
+    assert fx_txid(1) not in stored_txids(repo)  # 100 fillers at 1,000 sat beat its 5 sat
 
 
-def test_tx_left_with_no_edges_excluded(repo):
-    only_self = fx_tx(1, ins=("A", "A"), outs=(("A", 10**9),))
-    normal = fx_tx(2, value=10)
-    report = run(fx_chain([fx_block(0, 60, (only_self, normal))]), repo)
-    assert stored_txids(repo) == [fx_txid(2)] and report.no_edge_excluded == 1
+def test_tx_paying_only_its_own_input_addresses_excluded(repo):
+    only_self = fx_tx(1, ins=("A", "B"), outs=(("A", 10**9), ("B", 10**8)))
+    # A multi-input tx paying one of its inputs has an edge (B -> A) but no outward output: excluded too.
+    self_with_edge = fx_tx(2, ins=("A", "B"), outs=(("A", 10**9),))
+    assert outward_outputs(only_self) == [] and outward_outputs(self_with_edge) == []
+    report = run(fx_chain([fx_block(0, 60, (only_self, self_with_edge, fx_tx(3, value=10)))]), repo)
+    assert stored_txids(repo) == [fx_txid(3)]
+    assert report.no_outward_output_excluded == 2
+
+
+def test_change_plus_payment_ranked_by_payment(repo):
+    tx = fx_tx(1, ins=("A",), outs=(("A", 900_000), ("B", 1_000)))
+    assert ranking_value(tx) == 1_000
+    other = fx_tx(2, value=50_000)  # ranks above tx although tx's change output is larger
+    top = RunningTop(n=1)
+    for t in (tx, other):
+        top.add(rank_key(ranking_value(t), t.txid), t.txid)
+    assert top.ranked() == [other.txid]
+    run(fx_chain([fx_block(0, 60, (tx, other))]), repo)
+    stored = {t.txid: t for t in repo.get_day_transactions(DAY)}
+    # Stored data is unchanged: all addressed outputs, including the change, are kept.
+    assert [(o.address, o.value_sat) for o in stored[fx_txid(1)].outputs] == [("A", 900_000), ("B", 1_000)]
+
+
+def test_multi_input_paying_one_input_and_an_outside_address_ranked_by_outside_payment():
+    tx = fx_tx(1, ins=("A", "B"), outs=(("B", 10**6), ("C", 50)))
+    assert [o.address for o in outward_outputs(tx)] == ["C"]
+    assert ranking_value(tx) == 50
+
+
+def test_no_addressed_input_counted_separately(repo):
+    report = run(fx_chain([fx_block(0, 60, (fx_tx(1, ins=(None,), outs=(("X", 10**9),)), fx_tx(2)))]), repo)
+    assert report.no_addressed_input_excluded == 1 and stored_txids(repo) == [fx_txid(2)]
 
 
 def test_tx_without_addressed_input_excluded(repo):

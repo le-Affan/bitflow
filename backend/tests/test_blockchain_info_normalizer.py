@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from app.ingestion.core import has_edge, ranking_value
+from app.ingestion.core import outward_outputs, ranking_value
 from app.ingestion.source import SourceError
 from app.sources.blockchain_info.normalizer import normalize_block, normalize_headers
 
@@ -49,16 +49,17 @@ def test_multi_input_tx_with_no_address_output():
     assert [(i.position, i.value_sat) for i in tx.inputs] == [(0, 116070), (1, 115800), (2, 330)]
     assert [(o.position, o.address is None, o.value_sat) for o in tx.outputs] == [
         (0, False, 113000), (1, False, 2590), (2, True, 0), (3, False, 113191)]
-    # Largest addressed output goes back to an input address (change); it still sets the ranking value.
-    assert ranking_value(tx) == 113191
-    assert has_edge(tx)
+    # The largest addressed output (113191) goes back to an input address (change): it does not count.
+    # The ranking value is the largest output to an address outside the inputs.
+    assert ranking_value(tx) == 113000
+    assert {o.value_sat for o in outward_outputs(tx)} == {113000, 2590}
 
 
-def test_change_back_to_input_address_keeps_other_edge():
+def test_change_back_to_input_address_is_not_the_ranking_output():
     tx = normalize_block(_payload(), 970500).transactions[2]
     assert tx.inputs[0].address == tx.outputs[1].address == "bc1qan4zp4ek0mjn258xe29v8f8w7nq00jf2nu9dqz"
-    assert has_edge(tx)
-    assert ranking_value(tx) == 35220076
+    # 35220076 is change back to the input address; the payment is 2081669.
+    assert ranking_value(tx) == 2081669
 
 
 def test_all_values_are_integer_satoshis():
