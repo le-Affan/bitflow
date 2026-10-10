@@ -71,7 +71,7 @@ export function ControlsPanel({ selected, onSelect, today, ingestedDays, daysSta
           <DatePicker label="To" value={to} onChange={setTo} today={today} compact testId="range-to" />
         </div>
         <div className="bubble-anchor">
-          <button type="button" className="range-button" onClick={() => show("custom")}>Apply</button>
+          <button type="button" className="range-button primary" onClick={() => show("custom")}>Apply</button>
           {bubbleAt("custom")}
         </div>
       </section>

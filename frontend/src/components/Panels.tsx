@@ -8,9 +8,10 @@ import { formatUtc } from "../lib/time";
 import { FullValue, ShortValue } from "./Address";
 import { ErrorBox, Loading } from "./Status";
 
-function PanelShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function PanelShell(props: { title: string; onClose: () => void; closing?: boolean; children: React.ReactNode }) {
+  const { title, onClose, closing, children } = props;
   return (
-    <aside className="panel" aria-label={title} data-testid="side-panel">
+    <aside className={`panel${closing ? " closing" : ""}`} aria-label={title} data-testid="side-panel">
       <header className="panel-header">
         <h2>{title}</h2>
         <button type="button" className="close" onClick={onClose} aria-label="Close panel">×</button>
@@ -20,10 +21,11 @@ function PanelShell({ title, onClose, children }: { title: string; onClose: () =
   );
 }
 
-export function NodePanel({ day, address, onClose }: { day: string; address: string; onClose: () => void }) {
+export function NodePanel(props: { day: string; address: string; onClose: () => void; closing?: boolean }) {
+  const { day, address, onClose, closing } = props;
   const s = useAsync(() => api.address(day, address), [day, address]);
   return (
-    <PanelShell title="Address" onClose={onClose}>
+    <PanelShell title="Address" onClose={onClose} closing={closing}>
       <FullValue value={address} />
       {s.status === "loading" && <Loading />}
       {s.status === "error" && <ErrorBox error={s.error} onRetry={s.reload} what="address details" />}
@@ -44,21 +46,21 @@ export function NodePanel({ day, address, onClose }: { day: string; address: str
   );
 }
 
-export function EdgePanel(props: { day: string; source: string; target: string; onClose: () => void }) {
-  const { day, source, target, onClose } = props;
+export function EdgePanel(props: { day: string; source: string; target: string; onClose: () => void; closing?: boolean }) {
+  const { day, source, target, onClose, closing } = props;
   const [txid, setTxid] = useState<string | null>(null);
   const s = useAsync(() => api.edge(day, source, target), [day, source, target]);
 
   if (txid) {
     return (
-      <PanelShell title="Transaction" onClose={onClose}>
+      <PanelShell title="Transaction" onClose={onClose} closing={closing}>
         <button type="button" className="link" onClick={() => setTxid(null)}>← Back to edge</button>
         <TransactionDetails day={day} txid={txid} />
       </PanelShell>
     );
   }
   return (
-    <PanelShell title="Edge" onClose={onClose}>
+    <PanelShell title="Edge" onClose={onClose} closing={closing}>
       <dl className="facts">
         <dt>From</dt>
         <dd><ShortValue value={source} /></dd>

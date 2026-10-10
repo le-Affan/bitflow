@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, isEmptyState } from "./api/client";
 import { ControlsPanel } from "./components/ControlsPanel";
-import { GraphView, type GraphSelection, type RenderedCounts } from "./components/GraphView";
+import { GraphView, prefersReducedMotion, type GraphSelection, type RenderedCounts } from "./components/GraphView";
 import { EdgePanel, NodePanel } from "./components/Panels";
 import { EmptyState, ErrorBox, Loading } from "./components/Status";
 import { useAsync } from "./hooks/useAsync";
@@ -29,8 +29,24 @@ function NothingIngested() {
 
 function GraphArea({ day, onSummary }: { day: Ymd; onSummary: (s: Summary | null) => void }) {
   const graph = useAsync(() => api.graph(day), [day]);
-  const [selection, setSelection] = useState<GraphSelection>(null);
+  const [selection, setSelectionState] = useState<GraphSelection>(null);
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
   const [counts, setCounts] = useState<RenderedCounts | null>(null);
+
+  const setSelection = useCallback((next: GraphSelection) => {
+    window.clearTimeout(closeTimer.current);
+    setClosing(false);
+    setSelectionState(next);
+  }, []);
+  // Closing slides the panel out first (CSS), then removes it. Instant with reduced motion.
+  const closePanel = useCallback(() => {
+    if (prefersReducedMotion()) return setSelection(null);
+    setClosing(true);
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setSelection(null), 180);
+  }, [setSelection]);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
   const data = graph.status === "success" ? graph.data : null;
 
   useEffect(() => {
@@ -40,14 +56,13 @@ function GraphArea({ day, onSummary }: { day: Ymd; onSummary: (s: Summary | null
 
   const panel = useMemo(() => {
     if (!selection || !data) return null;
-    const close = () => setSelection(null);
     return selection.kind === "node" ? (
-      <NodePanel key={selection.address} day={data.day} address={selection.address} onClose={close} />
+      <NodePanel key={selection.address} day={data.day} address={selection.address} onClose={closePanel} closing={closing} />
     ) : (
       <EdgePanel key={`${selection.source}>${selection.target}`} day={data.day} source={selection.source}
-                 target={selection.target} onClose={close} />
+                 target={selection.target} onClose={closePanel} closing={closing} />
     );
-  }, [selection, data]);
+  }, [selection, data, closing, closePanel]);
 
   if (graph.status === "loading") return <Loading label="Loading graph…" />;
   if (graph.status === "error") {
@@ -63,6 +78,7 @@ function GraphArea({ day, onSummary }: { day: Ymd; onSummary: (s: Summary | null
           selection={selection}
           onNodeClick={(address) => setSelection({ kind: "node", address })}
           onEdgeClick={(source, target) => setSelection({ kind: "edge", source, target })}
+          onBackgroundClick={() => selection && closePanel()}
           onRendered={setCounts}
         />
       </section>
