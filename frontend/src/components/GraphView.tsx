@@ -27,7 +27,10 @@ interface Tooltip {
   text: string;
 }
 
-/** Read-only inspector used by the end-to-end smoke tests to find elements on the canvas. */
+/**
+ * Read-only inspector used by the end-to-end tests to find elements on the canvas. Only attached when the
+ * build sets VITE_E2E_INSPECTOR=true (the e2e image); production builds leave it out entirely.
+ */
 export interface GraphInspector {
   nodeCount: () => number;
   edgeCount: () => number;
@@ -36,8 +39,12 @@ export interface GraphInspector {
   degree: (id: string) => number;
   renderedNodePosition: (id: string) => { x: number; y: number } | null;
   renderedEdgeMidpoint: (id: string) => { x: number; y: number } | null;
+  /** Point at parameter t (0 = source end, 1 = target end) along the drawn edge. */
+  renderedEdgePoint: (id: string, t: number) => { x: number; y: number } | null;
   zoom: () => number;
   pan: () => { x: number; y: number };
+  /** Fires the same tap event a click would, for elements buried under others. */
+  tap: (id: string) => boolean;
   renderedAt: number;
   layoutMs: number;
 }
@@ -47,6 +54,9 @@ declare global {
     __bitflowGraph?: GraphInspector;
   }
 }
+
+// Build-time constant: Vite replaces it, so production bundles drop the inspector code.
+const E2E_INSPECTOR = import.meta.env.VITE_E2E_INSPECTOR === "true";
 
 export function edgeId(source: string, target: string): string {
   return `${source}->${target}`;
@@ -120,7 +130,7 @@ const MIN_NODE_DISTANCE = 30; // model units; nodes are 9 wide
 
 /**
  * Pushes apart nodes that ended up closer than `minDistance`. Force layouts put structurally
- * equivalent nodes (e.g. the two hubs of 2026-10-09, which share ~200 neighbours) on the same spot.
+ * equivalent nodes (e.g. two hubs that share most of their neighbours) on the same spot.
  */
 function separateOverlaps(cy: cytoscape.Core, minDistance: number, passes = 30): void {
   const nodes = cy.nodes().toArray();
@@ -217,7 +227,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
     resizeObserver.observe(containerRef.current);
 
     const renderedAt = performance.now();
-    window.__bitflowGraph = {
+    if (E2E_INSPECTOR) window.__bitflowGraph = {
       nodeCount: () => cy.nodes().length,
       edgeCount: () => cy.edges().length,
       nodeIds: () => cy.nodes().map((n) => n.id()),
@@ -231,8 +241,30 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
         const e = cy.getElementById(id) as cytoscape.EdgeSingular;
         return e.nonempty() ? e.renderedMidpoint() : null;
       },
+      renderedEdgePoint: (id, t) => {
+        const e = cy.getElementById(id) as cytoscape.EdgeSingular;
+        if (e.empty()) return null;
+        const s0 = e.renderedSourceEndpoint();
+        const s1 = e.renderedTargetEndpoint();
+        let cps: { x: number; y: number }[] = [];
+        try {
+          cps = e.renderedControlPoints() ?? []; // throws for straight edges without control points
+        } catch {
+          cps = [];
+        }
+        if (cps.length !== 1) return { x: s0.x + (s1.x - s0.x) * t, y: s0.y + (s1.y - s0.y) * t };
+        const c = cps[0]; // quadratic bezier: one control point
+        const u = 1 - t;
+        return { x: u * u * s0.x + 2 * u * t * c.x + t * t * s1.x, y: u * u * s0.y + 2 * u * t * c.y + t * t * s1.y };
+      },
       zoom: () => cy.zoom(),
       pan: () => cy.pan(),
+      tap: (id) => {
+        const el = cy.getElementById(id);
+        if (el.empty()) return false;
+        el.emit("tap");
+        return true;
+      },
       renderedAt,
       layoutMs,
     };
@@ -242,7 +274,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onRender
       resizeObserver.disconnect();
       setTooltip(null);
       cyRef.current = null;
-      delete window.__bitflowGraph;
+      if (E2E_INSPECTOR) delete window.__bitflowGraph;
       cy.destroy();
     };
   }, [graph]);

@@ -1,8 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./fixtures";
 import { API, graphInfo, waitForGraph } from "./helpers";
 
-// UI states with the API mocked by route interception. TEST FIXTURES: synthetic, not real chain data.
+// UI states with the API fully mocked by route interception. Never touches the real database.
+// TEST FIXTURES: every date, address and count below is synthetic, not real chain data.
 const fxDays = [
   { date: "2026-10-11", transaction_count: 1, ingested_at: "2026-10-12T01:10:00Z" },
   { date: "2026-10-10", transaction_count: 2, ingested_at: "2026-10-11T01:10:00Z" },

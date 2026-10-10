@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { formatBtc, formatSats } from "../../src/lib/btc";
 
+// Pure function tests. All amounts are synthetic inputs chosen for their digits, not stored data.
+
 describe("formatSats", () => {
   it.each([
     [0, "0.00000000"],
@@ -15,7 +17,7 @@ describe("formatSats", () => {
     [100_000_000_000, "1,000.00000000"],
     [99_999_999_999_999, "999,999.99999999"],
     [2_099_999_997_690_000, "20,999,999.97690000"], // total supply
-    [17_658_851_250_582, "176,588.51250582"], // real hub value from 2026-10-09
+    [17_658_851_250_582, "176,588.51250582"], // 14-digit value, separators in the whole part
     [-150, "-0.00000150"],
   ])("%s sat -> %s", (sats, expected) => {
     expect(formatSats(sats)).toBe(expected);

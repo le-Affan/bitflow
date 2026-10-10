@@ -1,8 +1,12 @@
-import { expect, test } from "@playwright/test";
-
+import { expect, ingestedDays, test } from "./fixtures";
 import { allNodesInView, graphInfo, hubId, pointOf, SHOTS, waitForGraph } from "./helpers";
 
-// Smoke test against the real running stack and whatever days are ingested.
+// Smoke tests against the real running stack. They use whatever days are ingested and assert no specific
+// values; with no day ingested they skip.
+test.beforeEach(async ({ request }) => {
+  test.skip((await ingestedDays(request)).length === 0, "No day has been ingested yet; smoke tests need one day.");
+});
+
 test("graph, node panel, edge panel, transaction details, zoom, day selector", async ({ page }) => {
   await page.goto("/");
   await waitForGraph(page);
@@ -24,13 +28,21 @@ test("graph, node panel, edge panel, transaction details, zoom, day selector", a
   await expect(page.getByTestId("address-scope")).toContainText("not the address's full history");
   await page.screenshot({ path: `${SHOTS}/desktop-node-panel.png` });
 
-  // Edge: click the edge with the most transactions (largest list), via its midpoint.
-  const edge = await page.evaluate(() => {
-    const g = window.__bitflowGraph!;
-    return g.edgeIds()[0];
-  });
-  const ep = await pointOf(page, "edge", edge);
-  await page.mouse.click(ep.x, ep.y);
+  // Edge: hover edges until one is the top-most element under the cursor (its tooltip shows), then click it.
+  const edgeIds = await page.evaluate(() => window.__bitflowGraph!.edgeIds());
+  let clicked = false;
+  for (const id of edgeIds.slice(0, 50)) {
+    const ep = await pointOf(page, "edge", id);
+    await page.mouse.move(ep.x, ep.y);
+    await page.waitForTimeout(50);
+    const tip = page.getByRole("tooltip");
+    if ((await tip.count()) && ((await tip.textContent()) ?? "").includes("→")) {
+      await page.mouse.click(ep.x, ep.y);
+      clicked = true;
+      break;
+    }
+  }
+  expect(clicked).toBe(true);
   await expect(page.getByTestId("edge-tx-list")).toBeVisible();
   const rows = page.getByTestId("edge-tx");
   expect(await rows.count()).toBeGreaterThan(0);

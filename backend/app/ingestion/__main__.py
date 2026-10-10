@@ -1,6 +1,6 @@
 """Ingest one UTC day from the command line.
 
-    python -m app.ingestion --date 2026-10-09
+    python -m app.ingestion --date YYYY-MM-DD
 
 Exit codes: 0 stored, 1 ingestion failed (nothing stored), 2 invalid date, 3 rate limited (stopped).
 """

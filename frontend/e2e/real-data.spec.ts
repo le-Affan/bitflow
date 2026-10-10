@@ -1,68 +1,94 @@
-import { expect, test } from "@playwright/test";
+import { apiJson, expect, ingestedDays, test } from "./fixtures";
+import { graphInfo, openEdge, pointOf, SHOTS, waitForGraph } from "./helpers";
 
-import { API, focusEdge, graphInfo, hubId, pointOf, SHOTS, waitForGraph } from "./helpers";
+// Checks the rendered page against whatever the real API serves for the latest ingested day.
+// No data values are hardcoded: every expectation is derived from API responses at test time.
 
-// Checks specific to the stored 2026-10-09 day (real data). Skipped if that day is not ingested.
-const DAY = "2026-10-09";
+interface GraphEdge { source: string; target: string; tx_count: number }
+interface Graph { day: string; nodes: { address: string }[]; edges: GraphEdge[] }
 
-function formatSats(sats: number): string {
+function formatBtcIndependent(sats: number): string {
   // Independent re-implementation for the check (BigInt, 8 decimals, thousands separators).
   const v = BigInt(sats);
-  const whole = (v / 100000000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${whole}.${(v % 100000000n).toString().padStart(8, "0")} BTC`;
+  const sign = v < 0n ? "-" : "";
+  const abs = v < 0n ? -v : v;
+  const whole = (abs / 100000000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}${whole}.${(abs % 100000000n).toString().padStart(8, "0")} BTC`;
 }
 
-test.beforeEach(async ({ request }) => {
-  const days: { date: string }[] = await (await request.get(`${API}/api/days`)).json();
-  test.skip(!days.some((d) => d.date === DAY), `${DAY} is not ingested`);
-});
+const plural = (n: number) => `${n} transaction${n === 1 ? "" : "s"}`;
+// Independent of src/lib/shorten.ts: first 6 + "…" + last 4.
+const short = (a: string) => (a.length <= 11 ? a : `${a.slice(0, 6)}…${a.slice(-4)}`);
 
-test("real 2026-10-09: counts, 70-transaction edge, hub totals, timing, smoothness", async ({ page, request }) => {
+test("latest ingested day: rendered graph and panels match the API", async ({ page, request }) => {
+  const days = await ingestedDays(request);
+  test.skip(days.length === 0, "No day has been ingested yet, so there is no real data to check.");
+  const day = days[0].date; // /api/days is newest first
+
+  const { body: graph } = await apiJson<Graph>(request, `/api/graph?day=${day}`);
+  const expectedNodes = graph.nodes.length;
+  const expectedEdges = graph.edges.length;
+  // Consistency of the API data itself: nodes are exactly the addresses that appear in edges.
+  const endpoints = new Set(graph.edges.flatMap((e) => [e.source, e.target]));
+  expect(endpoints.size).toBe(expectedNodes);
+
+  // Most-connected node and the edge with the most transactions, from the API data (ties: alphabetical).
+  const degree = new Map<string, number>();
+  for (const e of graph.edges) for (const a of [e.source, e.target]) degree.set(a, (degree.get(a) ?? 0) + 1);
+  const [hub, hubDegree] = [...degree.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const big = [...graph.edges].sort((a, b) => b.tx_count - a.tx_count || a.source.localeCompare(b.source)
+                                              || a.target.localeCompare(b.target))[0];
+
+  // Page load to rendered graph (the app defaults to the latest day).
   const navStart = Date.now();
   await page.goto("/");
-  await page.getByTestId("day-select").selectOption(DAY);
   await waitForGraph(page);
   const wall = Date.now() - navStart;
+  await expect(page.getByTestId("day-select")).toHaveValue(day);
   const info = await graphInfo(page);
-  const nav = await page.evaluate(() => performance.getEntriesByType("navigation")[0].toJSON());
-  console.log(`REAL counts from Cytoscape: nodes=${info.nodes} edges=${info.edges}`);
-  console.log(`REAL timing: graph rendered ${Math.round(info.renderedAt)} ms after navigation start ` +
-              `(DOMContentLoaded ${Math.round(nav.domContentLoadedEventEnd)} ms, layout ${info.layoutMs} ms); wall ${wall} ms`);
-  expect(info.nodes).toBe(342);
-  expect(info.edges).toBe(843);
+  console.log(`DAY ${day}: API nodes=${expectedNodes} edges=${expectedEdges}; rendered nodes=${info.nodes} edges=${info.edges}`);
+  console.log(`TIMING graph rendered ${Math.round(info.renderedAt)} ms after navigation start (layout ${info.layoutMs} ms, wall ${wall} ms)`);
+  expect(info.nodes).toBe(expectedNodes);
+  expect(info.edges).toBe(expectedEdges);
+  expect(info.renderedAt).toBeLessThan(60_000); // loose sanity bound only
 
-  // (b) the 70-transaction edge.
-  const graph = await (await request.get(`${API}/api/graph?day=${DAY}`)).json();
-  const big = graph.edges.reduce((a: any, b: any) => (b.tx_count > a.tx_count ? b : a));
-  expect(big.tx_count).toBe(70);
-  const ep = await focusEdge(page, `${big.source}->${big.target}`, /· 70 transactions$/);
-  await page.mouse.click(ep.x, ep.y);
-  await expect(page.getByTestId("edge-tx-heading")).toHaveText("70 transactions");
-  await expect(page.getByTestId("edge-tx")).toHaveCount(70);
-  const list = page.getByTestId("edge-tx-list");
-  await list.locator("li").last().scrollIntoViewIfNeeded();
-  await expect(list.locator("li").last()).toBeInViewport();
-  console.log("REAL 70-tx edge panel rows:", await page.getByTestId("edge-tx").count());
-  await page.screenshot({ path: `${SHOTS}/desktop-edge-panel-70.png` });
+  // Edge with the most transactions: the panel lists exactly what /api/edges reports.
+  const { body: edgeDetail } = await apiJson<{ transactions: unknown[] }>(
+    request, `/api/edges?day=${day}&source=${encodeURIComponent(big.source)}&target=${encodeURIComponent(big.target)}`);
+  expect(edgeDetail.transactions.length).toBe(big.tx_count);
+  const how = await openEdge(page, `${big.source}->${big.target}`,
+                             `${short(big.source)} → ${short(big.target)} · ${plural(big.tx_count)}`);
+  await expect(page.getByTestId("side-panel")).toContainText(short(big.source));
+  await expect(page.getByTestId("side-panel")).toContainText(short(big.target));
+  await expect(page.getByTestId("edge-tx-heading")).toHaveText(plural(edgeDetail.transactions.length));
+  await expect(page.getByTestId("edge-tx")).toHaveCount(edgeDetail.transactions.length);
+  const last = page.getByTestId("edge-tx-list").locator("li").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
+  console.log(`EDGE with most transactions: ${big.tx_count} in API, ${await page.getByTestId("edge-tx").count()} rows in panel (opened by ${how})`);
+  await page.screenshot({ path: `${SHOTS}/desktop-edge-panel-largest.png` });
 
-  // (c) hub totals vs API after formatting.
+  // Most-connected node: panel totals equal /api/addresses after independent formatting.
   await page.getByRole("button", { name: "Reset view" }).click();
-  const hub = await hubId(page);
-  const api = await (await request.get(`${API}/api/addresses/${hub}?day=${DAY}`)).json();
+  const { body: addr } = await apiJson<{ transaction_count: number; spent_sat: number; received_sat: number; scope: string }>(
+    request, `/api/addresses/${encodeURIComponent(hub)}?day=${day}`);
   const hp = await pointOf(page, "node", hub);
   await page.mouse.click(hp.x, hp.y);
-  await expect(page.getByTestId("address-tx-count")).toHaveText(String(api.transaction_count));
-  await expect(page.getByTestId("address-sent")).toHaveText(formatSats(api.spent_sat));
-  await expect(page.getByTestId("address-received")).toHaveText(formatSats(api.received_sat));
-  await expect(page.getByTestId("address-scope")).toHaveText(api.scope);
-  console.log(`REAL hub ${hub}: tx=${api.transaction_count} sent=${formatSats(api.spent_sat)} received=${formatSats(api.received_sat)}`);
+  await expect(page.getByTestId("side-panel")).toContainText(hub);
+  await expect(page.getByTestId("address-tx-count")).toHaveText(String(addr.transaction_count));
+  await expect(page.getByTestId("address-sent")).toHaveText(formatBtcIndependent(addr.spent_sat));
+  await expect(page.getByTestId("address-received")).toHaveText(formatBtcIndependent(addr.received_sat));
+  await expect(page.getByTestId("address-scope")).toHaveText(addr.scope);
+  console.log(`HUB degree ${hubDegree}: tx=${addr.transaction_count} sent=${formatBtcIndependent(addr.spent_sat)} ` +
+              `received=${formatBtcIndependent(addr.received_sat)}`);
 
-  // (d) smoothness: frames per second while wheel-zooming and dragging for ~2 s.
+  // Smoothness: frames per second while wheel-zooming and dragging for ~2 s. Reported, loosely bounded.
   const box = (await page.getByTestId("graph-canvas").boundingBox())!;
   await page.evaluate(() => {
-    (window as any).__frames = [];
-    const tick = (t: number) => { (window as any).__frames.push(t); (window as any).__raf = requestAnimationFrame(tick); };
-    (window as any).__raf = requestAnimationFrame(tick);
+    const w = window as unknown as { __frames: number[]; __raf: number };
+    w.__frames = [];
+    const tick = (t: number) => { w.__frames.push(t); w.__raf = requestAnimationFrame(tick); };
+    w.__raf = requestAnimationFrame(tick);
   });
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy);
@@ -71,11 +97,14 @@ test("real 2026-10-09: counts, 70-transaction edge, hub totals, timing, smoothne
   for (let i = 0; i < 40; i++) { await page.mouse.move(cx + 6 * i, cy + 3 * i); await page.waitForTimeout(16); }
   await page.mouse.up();
   const fps = await page.evaluate(() => {
-    cancelAnimationFrame((window as any).__raf);
-    const f: number[] = (window as any).__frames;
+    const w = window as unknown as { __frames: number[]; __raf: number };
+    cancelAnimationFrame(w.__raf);
+    const f = w.__frames;
     const gaps = f.slice(1).map((t, i) => t - f[i]);
     return { frames: f.length, seconds: (f[f.length - 1] - f[0]) / 1000, maxGapMs: Math.max(...gaps),
              fps: (f.length - 1) / ((f[f.length - 1] - f[0]) / 1000) };
   });
-  console.log(`REAL interaction: ${fps.frames} frames in ${fps.seconds.toFixed(2)} s = ${fps.fps.toFixed(1)} fps, longest frame gap ${fps.maxGapMs.toFixed(0)} ms`);
+  console.log(`INTERACTION ${fps.frames} frames in ${fps.seconds.toFixed(2)} s = ${fps.fps.toFixed(1)} fps, ` +
+              `longest frame gap ${fps.maxGapMs.toFixed(0)} ms`);
+  expect(fps.fps).toBeGreaterThan(5); // loose sanity bound only
 });

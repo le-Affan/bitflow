@@ -1,3 +1,6 @@
+# All data in this module is synthetic (see the fixtures modules) and runs against the separate test database
+# (TEST_DATABASE_URL), never the real one.
+
 import pytest
 from fastapi.testclient import TestClient
 

@@ -75,16 +75,35 @@ services:
       dockerfile: ../docker/frontend.Dockerfile
       target: test
 
-  # Playwright smoke tests against the running stack (host network, so 127.0.0.1 is the host).
+  # Same static build as `frontend`, plus the e2e inspector (VITE_E2E_INSPECTOR=true). Only for Playwright.
+  frontend-e2e-app:
+    profiles: ["e2e"]
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      target: serve
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+        VITE_E2E_INSPECTOR: "true"
+    ports:
+      - "127.0.0.1:${FRONTEND_E2E_HOST_PORT:-3100}:80"
+    depends_on:
+      - backend
+
+  # Playwright tests against frontend-e2e-app and the real backend (host network, so 127.0.0.1 is the host).
   frontend-e2e:
     profiles: ["e2e"]
     image: mcr.microsoft.com/playwright:v1.64.0-noble
     network_mode: host
+    depends_on:
+      - frontend-e2e-app
     working_dir: /work
     user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
     environment:
       HOME: /tmp
-      E2E_BASE_URL: http://127.0.0.1:${FRONTEND_HOST_PORT:-3000}
+      E2E_BASE_URL: http://127.0.0.1:${FRONTEND_E2E_HOST_PORT:-3100}
+      # "1" = mock every API call as "no day ingested" (checks the suite does not depend on stored data).
+      E2E_MOCK_EMPTY_API: ${E2E_MOCK_EMPTY_API:-}
       E2E_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
     volumes:
       - ./frontend:/work:z

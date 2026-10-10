@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { shorten } from "../../src/lib/shorten";
 
+// Synthetic strings shaped like addresses (bech32-like 42 chars, base58-like 34 chars); not stored data.
 describe("shorten", () => {
   it("keeps first 6 and last 4 characters", () => {
-    expect(shorten("bc1qan4zp4ek0mjn258xe29v8f8w7nq00jf2nu9dqz")).toBe("bc1qan…9dqz");
-    expect(shorten("12hrgWCMVrwgDArJvV2ypwTKgfyNqUNkRH")).toBe("12hrgW…NkRH");
+    expect(shorten("bc1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1234")).toBe("bc1qxx…1234");
+    expect(shorten("1Abcdefghijkmnopqrstuvwxyz12345678")).toBe("1Abcde…5678");
   });
 
   it("leaves short values unchanged", () => {

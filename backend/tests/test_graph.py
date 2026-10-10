@@ -1,3 +1,5 @@
+# All data in this module is synthetic (tests/api_fixtures.py). Pure functions: no database involved.
+
 from app.domain.graph import address_summary, build_graph, edge_transactions, transaction_pairs
 from tests.api_fixtures import fixture_day, ftx, ftxid
 

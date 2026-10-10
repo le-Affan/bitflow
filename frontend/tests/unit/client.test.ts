@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ApiError, createApiClient, isEmptyState, toApiError } from "../../src/api/client";
 
+// fetch is mocked in every test; all dates, addresses and counts below are synthetic.
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
