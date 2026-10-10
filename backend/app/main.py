@@ -1,8 +1,37 @@
+"""Composition root of the HTTP app: wires the PostgreSQL repository into the read-only API."""
+from functools import lru_cache
+from typing import Callable
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="BitFlow API")
+from app.api.routes import router
+from app.config import cors_allow_origins, database_url
+from app.repository import DayRepository
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+@lru_cache(maxsize=1)
+def _postgres_repository() -> DayRepository:
+    from app.repository.postgres import PostgresDayRepository
+
+    return PostgresDayRepository.from_url(database_url())
+
+
+def create_app(repository_provider: Callable[[], DayRepository] | None = None) -> FastAPI:
+    app = FastAPI(title="BitFlow API")
+    # Resolved lazily per request, so importing the app never connects to the database.
+    app.state.repository_provider = repository_provider or _postgres_repository
+
+    origins = cors_allow_origins()
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"], allow_headers=["*"])
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    app.include_router(router)
+    return app
+
+
+app = create_app()

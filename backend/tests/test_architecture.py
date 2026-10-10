@@ -55,3 +55,18 @@ def test_http_and_subprocess_only_inside_sources() -> None:
 def test_no_subprocess_anywhere_in_app() -> None:
     offenders = [f"{path.relative_to(APP)}" for path in APP.rglob("*.py") if "subprocess" in _imports(path)]
     assert offenders == []
+
+
+FRAMEWORK_MODULES = ("fastapi", "starlette", "pydantic")
+
+
+def test_api_routes_depend_only_on_repository_interface() -> None:
+    offenders = [f"{path.relative_to(APP)}: {n}" for path in (APP / "api").rglob("*.py") for n in _imports(path)
+                 if n.split(".")[0] in DB_MODULES or n.startswith(("app.repository.postgres", "app.repository.tables"))]
+    assert offenders == []
+
+
+def test_graph_module_is_pure() -> None:
+    names = _imports(APP / "domain" / "graph.py")
+    forbidden = DB_MODULES + HTTP_MODULES + FRAMEWORK_MODULES + ("app.repository", "app.api", "app.sources")
+    assert [n for n in names if n.split(".")[0] in forbidden or n.startswith(forbidden)] == []

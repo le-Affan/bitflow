@@ -1,6 +1,6 @@
 # BitFlow backend
 
-FastAPI service. Exposes only `GET /health` so far. Data access lives in `app/repository/` behind the `DayRepository` protocol; the schema is created only by Alembic migrations in `migrations/`.
+FastAPI service. Exposes `GET /health` and the read-only API under `/api` (`/days`, `/graph`, `/addresses/{address}`, `/edges`, `/transactions/{txid}`); interactive docs at `/docs`. Data access lives in `app/repository/` behind the `DayRepository` protocol; the schema is created only by Alembic migrations in `migrations/`.
 
 Run everything from the repository root with Docker Compose (needs a `.env`, copy from `.env.example` and set `POSTGRES_PASSWORD`):
 

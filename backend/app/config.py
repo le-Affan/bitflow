@@ -29,3 +29,8 @@ def ingestion_settings() -> dict:
         "read_timeout_s": _env_float("INGEST_READ_TIMEOUT_SECONDS", 120.0),
         "margin_blocks": _env_int("INGEST_MARGIN_BLOCKS", 3),
     }
+
+
+def cors_allow_origins() -> list[str]:
+    """Origins allowed by CORS, from CORS_ALLOW_ORIGINS (comma-separated). Empty = CORS disabled."""
+    return [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
