@@ -218,6 +218,11 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
   white-space: nowrap; z-index: 5; animation: tooltip-in 0.14s var(--ease);
 }
 .graph-controls { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 4; }
+.graph-overlay {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6;
+  display: flex; align-items: center; padding: 10px 16px; border-radius: 10px; font-size: 0.9rem;
+  background: var(--tooltip-bg); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-pop);
+}
 .graph-controls button { min-width: 34px; background: var(--control-bg); box-shadow: var(--shadow-pop); }
 
 /* Detail panels (right) */

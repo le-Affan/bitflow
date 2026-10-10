@@ -113,6 +113,8 @@ function graphStyle(theme: Theme, animate: boolean): cytoscape.StylesheetJson {
         "transition-duration": TRANSITION_MS, "transition-timing-function": "ease-in-out" as const }
     : {};
   return [
+    // While panning/zooming a large graph, areas outside the cached bitmap stay transparent (CSS background shows).
+    { selector: "core", style: { "outside-texture-bg-opacity": 0 } } as unknown as cytoscape.StylesheetJsonBlock,
     {
       selector: "node",
       style: {
@@ -140,16 +142,17 @@ function graphStyle(theme: Theme, animate: boolean): cytoscape.StylesheetJson {
         "target-arrow-color": c.edge,
         "target-arrow-shape": "triangle",
         "arrow-scale": 0.6,
-        // Bezier separates parallel edges, so A->B and B->A are drawn as two distinct curves.
-        "curve-style": "bezier",
-        "control-point-step-size": 14,
+        // Straight is the cheapest edge with an arrowhead; edges with an opposite partner use bezier (below).
+        "curve-style": "straight",
         "overlay-opacity": 0,
         ...edgeTransition,
       },
     },
+    // A->B and B->A both exist: bezier draws them as two distinct curves.
+    { selector: "edge.bidir", style: { "curve-style": "bezier", "control-point-step-size": 14 } },
     { selector: "node.dimmed", style: { opacity: c.nodeDim } },
     { selector: "edge.dimmed", style: { opacity: c.edgeDim } },
-    { selector: "node.hl", style: { "background-color": c.accentSoft, "underlay-color": c.accent, "underlay-opacity": 0.2 } },
+    { selector: "node.hl", style: { opacity: 1, "background-color": c.accentSoft, "underlay-color": c.accent, "underlay-opacity": 0.2 } },
     {
       selector: "edge.hl",
       style: {
@@ -178,54 +181,139 @@ const HOVER_GRACE_MS = 120; // keep a hover highlight briefly so gaps between el
 const DASH_MAX_EDGES = 240; // moving dash only when few enough edges are highlighted
 const GRID_PX = 24;
 
-function layoutOptions(): cytoscape.LayoutOptions {
+// Graphs above this many nodes get the fast layout path and cheaper rendering; smaller graphs keep the
+// original full-quality layout.
+const LARGE_GRAPH_NODES = 600;
+const SMALL_MIN_DISTANCE = 30; // model units; nodes are 10 wide (13 with their ring)
+const LARGE_MIN_DISTANCE = 14;
+const LEAF_RING0 = 28; // first ring radius around a parent
+const LEAF_GAP = 16; // spacing between leaves on a ring and between rings
+
+/** Finished layouts per day, in memory, so returning to a day already viewed is instant. */
+const layoutCache = new Map<string, Map<string, cytoscape.Position>>();
+const layoutKey = (g: Graph) => `${g.day}|${g.nodes.length}|${g.edges.length}`;
+
+function coseOptions(large: boolean, forcedNodes: number): cytoscape.LayoutOptions {
+  // cose stops when its temperature cools down; a lower cooling factor means fewer iterations. Small graphs keep
+  // the default cooling (0.99) and today's quality; the core of a large graph cools faster, more so when bigger.
+  const coolingFactor = !large ? 0.99 : forcedNodes <= 1500 ? 0.95 : 0.9;
   return {
     name: "cose",
     animate: false,
     randomize: true,
-    fit: true,
-    padding: 24,
-    // Strong repulsion and long ideal edges keep the hub's star readable; gravity pulls the many
-    // small disconnected components in around the main one instead of scattering them.
+    fit: false,
+    // Strong repulsion and long ideal edges keep stars readable; gravity pulls the many small disconnected
+    // components in around the main one instead of scattering them; cose packs components apart.
     nodeRepulsion: () => 9000,
     idealEdgeLength: () => 40,
     edgeElasticity: () => 80,
     gravity: 0.6,
     numIter: 1500,
+    coolingFactor,
     componentSpacing: 30,
     nodeOverlap: 8,
   } as cytoscape.LayoutOptions;
 }
 
-const MIN_NODE_DISTANCE = 30; // model units; nodes are 9 wide
+/** Ring radii and how many leaves fit on each, for `count` leaves around one parent. */
+function leafRings(count: number): [radius: number, capacity: number][] {
+  const rings: [number, number][] = [];
+  let radius = LEAF_RING0;
+  for (let left = count; left > 0; radius += LEAF_GAP) {
+    const capacity = Math.max(6, Math.floor((2 * Math.PI * radius) / LEAF_GAP));
+    rings.push([radius, Math.min(capacity, left)]);
+    left -= capacity;
+  }
+  return rings;
+}
 
 /**
- * Pushes apart nodes that ended up closer than `minDistance`. Force layouts put structurally
- * equivalent nodes (e.g. two hubs that share most of their neighbours) on the same spot.
+ * Lays out the graph. Large graphs: only the "core" (nodes with more than one neighbour) is force-laid out;
+ * leaves (nodes whose single neighbour has other neighbours) are placed on rings around their parent. Each
+ * parent reserves room for its rings during the core layout, so clusters don't pile on top of each other.
+ */
+function runLayout(cy: cytoscape.Core, large: boolean): void {
+  if (!large) {
+    cy.layout(coseOptions(false, cy.nodes().length)).run();
+    separateOverlaps(cy, SMALL_MIN_DISTANCE);
+    return;
+  }
+  const leaves = cy.nodes().filter((n) => {
+    const nb = n.neighborhood().nodes();
+    return nb.length === 1 && nb[0].neighborhood().nodes().length > 1;
+  });
+  const children = new Map<string, cytoscape.NodeSingular[]>();
+  leaves.forEach((leaf) => {
+    const parent = leaf.neighborhood().nodes()[0].id();
+    (children.get(parent) ?? children.set(parent, []).get(parent)!).push(leaf);
+  });
+  // Temporary layout-only size for parents (removed before anything is drawn; rendering stays uniform).
+  cy.batch(() => children.forEach((kids, parentId) => {
+    const rings = leafRings(kids.length);
+    const size = 2 * rings[rings.length - 1][0] + 10;
+    cy.getElementById(parentId).style({ width: size, height: size });
+  }));
+  const core = cy.elements().difference(leaves).difference(leaves.connectedEdges());
+  const t0 = performance.now();
+  core.layout(coseOptions(true, core.nodes().length)).run();
+  performance.measure("bitflow:layout:cose", { start: t0, end: performance.now() });
+  cy.batch(() => children.forEach((kids, parentId) => {
+    const parent = cy.getElementById(parentId);
+    parent.removeStyle("width height");
+    const c = parent.position();
+    let i = 0;
+    for (const [radius, count] of leafRings(kids.length)) {
+      for (let a = 0; a < count; a++, i++) {
+        const angle = (2 * Math.PI * a) / count + radius; // offset per ring so rings don't line up
+        kids[i].position({ x: c.x + radius * Math.cos(angle), y: c.y + radius * Math.sin(angle) });
+      }
+    }
+  }));
+  const t1 = performance.now();
+  separateOverlaps(cy, LARGE_MIN_DISTANCE);
+  performance.measure("bitflow:layout:separate", { start: t1, end: performance.now() });
+}
+
+/**
+ * Pushes apart nodes closer than `minDistance` (a uniform-grid neighbour search, about linear in node count).
+ * Force layouts put structurally equivalent nodes (e.g. two hubs sharing most neighbours) on the same spot.
  */
 function separateOverlaps(cy: cytoscape.Core, minDistance: number, passes = 30): void {
   const nodes = cy.nodes().toArray();
   const pos = nodes.map((n) => ({ ...n.position() }));
+  const cell = (v: number) => Math.floor(v / minDistance);
   for (let pass = 0; pass < passes; pass++) {
+    const grid = new Map<string, number[]>();
+    pos.forEach((p, i) => {
+      const k = `${cell(p.x)},${cell(p.y)}`;
+      (grid.get(k) ?? grid.set(k, []).get(k)!).push(i);
+    });
     let moved = false;
     for (let i = 0; i < pos.length; i++) {
-      for (let j = i + 1; j < pos.length; j++) {
-        let dx = pos[j].x - pos[i].x;
-        let dy = pos[j].y - pos[i].y;
-        let d = Math.hypot(dx, dy);
-        if (d >= minDistance) continue;
-        if (d === 0) {
-          // Deterministic direction for exactly coincident nodes.
-          dx = Math.cos(i + j);
-          dy = Math.sin(i + j);
-          d = 1;
+      const gx = cell(pos[i].x);
+      const gy = cell(pos[i].y);
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          for (const j of grid.get(`${gx + ox},${gy + oy}`) ?? []) {
+            if (j <= i) continue;
+            let dx = pos[j].x - pos[i].x;
+            let dy = pos[j].y - pos[i].y;
+            let d = Math.hypot(dx, dy);
+            if (d >= minDistance) continue;
+            if (d === 0) {
+              // Deterministic direction for exactly coincident nodes.
+              dx = Math.cos(i + j);
+              dy = Math.sin(i + j);
+              d = 1;
+            }
+            const push = (minDistance - d) / 2;
+            pos[i].x -= (dx / d) * push;
+            pos[i].y -= (dy / d) * push;
+            pos[j].x += (dx / d) * push;
+            pos[j].y += (dy / d) * push;
+            moved = true;
+          }
         }
-        const push = (minDistance - d) / 2;
-        pos[i].x -= (dx / d) * push;
-        pos[i].y -= (dy / d) * push;
-        pos[j].x += (dx / d) * push;
-        pos[j].y += (dy / d) * push;
-        moved = true;
       }
     }
     if (!moved) break;
@@ -244,12 +332,40 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
   const applyRef = useRef<() => void>(() => {});
   const themeRef = useRef<Theme>(theme);
   themeRef.current = theme;
+  const largeRef = useRef(false);
+  const [layingOut, setLayingOut] = useState(() => !layoutCache.has(layoutKey(graph)));
 
-  // (Re)build the graph whenever the data changes.
+  // (Re)build the graph whenever the data changes. A layout that isn't cached runs after the browser has painted
+  // the "Laying out graph…" indicator (initial state), so the indicator is visible during the computation.
   useEffect(() => {
     if (!containerRef.current) return;
+    let cancelled = false;
+    let dispose: (() => void) | null = null;
+    const cached = layoutCache.get(layoutKey(graph));
+    const run = () => {
+      if (cancelled) return;
+      dispose = build(cached);
+      setLayingOut(false);
+    };
+    let raf = 0;
+    let timer = 0;
+    if (cached) run();
+    else raf = requestAnimationFrame(() => { timer = window.setTimeout(run, 0); }); // after the next paint
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+      dispose?.();
+    };
+  }, [graph]);
+
+  function build(cached: Map<string, cytoscape.Position> | undefined): () => void {
     const started = performance.now();
     const reduced = prefersReducedMotion();
+    const large = graph.nodes.length > LARGE_GRAPH_NODES;
+    largeRef.current = large;
+    const pairs = new Set(graph.edges.map((e) => edgeId(e.source, e.target)));
+    const tCreate = performance.now();
     const cy = cytoscape({
       container: containerRef.current,
       elements: [
@@ -257,21 +373,32 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
         ...graph.edges.map((e) => ({
           group: "edges" as const,
           data: { id: edgeId(e.source, e.target), source: e.source, target: e.target, txCount: e.tx_count },
+          classes: pairs.has(edgeId(e.target, e.source)) ? "bidir" : "",
         })),
       ],
-      style: graphStyle(themeRef.current, !reduced),
+      // Element transitions are skipped on large graphs: easing thousands of elements per hover lags.
+      style: graphStyle(themeRef.current, !reduced && !large),
       layout: { name: "preset" },
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       boxSelectionEnabled: false,
       autoungrabify: true,
       selectionType: "single",
+      // Large graphs: while panning/zooming, Cytoscape moves a cached bitmap of the current frame (arrowheads
+      // and curves included) instead of redrawing every edge.
+      textureOnViewport: large,
     });
-    cy.layout(layoutOptions()).run();
-    separateOverlaps(cy, MIN_NODE_DISTANCE);
+    performance.measure("bitflow:create", { start: tCreate, end: performance.now() });
+    if (cached) {
+      cy.batch(() => cy.nodes().forEach((n) => { n.position(cached.get(n.id()) ?? { x: 0, y: 0 }); }));
+    } else {
+      runLayout(cy, large);
+      layoutCache.set(layoutKey(graph), new Map(cy.nodes().map((n) => [n.id(), { ...n.position() }] as const)));
+    }
     cy.fit(undefined, 24);
     cyRef.current = cy;
     const layoutMs = Math.round(performance.now() - started);
+    performance.measure(cached ? "bitflow:layout-cached" : "bitflow:layout", { start: started, end: performance.now() });
 
     // Highlight: the hovered element (or else the selected one), its direct neighbourhood lit, the rest dimmed.
     let hovered: GraphElement | null = null;
@@ -288,30 +415,63 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       dashEdges.style("line-dash-offset", dashOffset);
       dashFrame = requestAnimationFrame(dashTick);
     };
-    let applied: GraphElement | null | undefined;
+    // Only elements whose state changes are touched (diffs between the previous and the new sets), in one
+    // batched update. Small graphs: hover and selection both light the neighbourhood and dim the rest. Large
+    // graphs: hover only lights the neighbourhood; dimming follows the click selection, so a hover never restyles
+    // thousands of elements.
+    const neighbourhood = (el: GraphElement): cytoscape.Collection => el.isNode()
+      ? (el as cytoscape.NodeSingular).closedNeighborhood()
+      : (el as cytoscape.EdgeSingular).union((el as cytoscape.EdgeSingular).connectedNodes());
+    let selectedPrev: GraphElement | null = null;
+    let dimFocusPrev: GraphElement | null = null;
+    let keepPrev: cytoscape.Collection = cy.collection(); // elements not dimmed
+    let hlFocusPrev: GraphElement | null = null;
+    let litPrev: cytoscape.Collection = cy.collection();
     const applyHighlight = () => {
-      const focus = hovered ?? (selectedRef.current?.inside() ? selectedRef.current : null);
       const selectedNow = selectedRef.current?.inside() ? selectedRef.current : null;
-      if (focus === applied && cy.elements(".selected").same(selectedNow ?? cy.collection())) return;
-      applied = focus;
-      stopDash();
+      const focus = hovered ?? selectedNow;
+      const dimFocus = large ? selectedNow : focus;
+      if (selectedNow === selectedPrev && dimFocus === dimFocusPrev && focus === hlFocusPrev) return;
       cy.batch(() => {
-        cy.elements().removeClass("hl focus dimmed selected");
-        if (selectedRef.current?.inside()) selectedRef.current.addClass("selected");
-        if (!focus) return;
-        const lit = focus.isNode()
-          ? (focus as cytoscape.NodeSingular).closedNeighborhood()
-          : (focus as cytoscape.EdgeSingular).union((focus as cytoscape.EdgeSingular).connectedNodes());
-        cy.elements().difference(lit).addClass("dimmed");
-        lit.addClass("hl");
-        focus.addClass("focus");
-        dashEdges = lit.edges();
+        if (selectedNow !== selectedPrev) {
+          selectedPrev?.removeClass("selected");
+          selectedNow?.addClass("selected");
+          selectedPrev = selectedNow;
+        }
+        if (dimFocus !== dimFocusPrev) {
+          if (!dimFocus) {
+            cy.elements(".dimmed").removeClass("dimmed");
+            keepPrev = cy.collection();
+          } else {
+            const keep = neighbourhood(dimFocus);
+            if (!dimFocusPrev) cy.elements().difference(keep).addClass("dimmed");
+            else {
+              keepPrev.difference(keep).addClass("dimmed");
+              keep.removeClass("dimmed");
+            }
+            keepPrev = keep;
+          }
+          dimFocusPrev = dimFocus;
+        }
+        if (focus !== hlFocusPrev) {
+          stopDash();
+          const lit = focus ? neighbourhood(focus) : cy.collection();
+          hlFocusPrev?.removeClass("focus");
+          litPrev.difference(lit).removeClass("hl");
+          lit.addClass("hl");
+          focus?.addClass("focus");
+          hlFocusPrev = focus;
+          litPrev = lit;
+          dashEdges = lit.edges();
+          if (!reduced && !large && dashEdges.nonempty() && dashEdges.length <= DASH_MAX_EDGES) {
+            dashFrame = requestAnimationFrame(dashTick);
+          }
+        }
       });
-      if (!reduced && dashEdges.nonempty() && dashEdges.length <= DASH_MAX_EDGES) dashFrame = requestAnimationFrame(dashTick);
     };
     applyRef.current = applyHighlight;
 
-    const container = containerRef.current;
+    const container = containerRef.current!;
     // Cursor and classes go on the wrapper, not on Cytoscape's container: Cytoscape watches its container's
     // attributes and runs a full resize/redraw on every change.
     const wrapEl = wrapRef.current!;
@@ -384,17 +544,43 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       if (dx) cy.panBy({ x: dx, y: 0 });
       renderNow();
     });
-    resizeObserver.observe(containerRef.current);
+    resizeObserver.observe(container);
 
     // Wheel zoom: a fixed step per notch, centred on the mouse. Captured on the wrapper before Cytoscape's
     // own (much slower) wheel handler, which is stopped; pinch zoom on touch screens stays Cytoscape's.
     const wrap = wrapRef.current!;
+    // Wheel events are coalesced into one zoom per frame (a fast wheel or trackpad can fire many per frame).
+    let wheelNotchesPending = 0;
+    let wheelAt = { x: 0, y: 0 };
+    let wheelFrame = 0;
+    let wheelIdle = 0;
+    type RendererInternals = { data?: { wheelZooming?: boolean }; redrawHint?: (k: string, v: boolean) => void; redraw?: () => void };
+    const renderer = (cy as unknown as { renderer?: () => RendererInternals }).renderer?.();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
       const rect = containerRef.current!.getBoundingClientRect();
-      const level = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cy.zoom() * (1 + WHEEL_ZOOM_STEP) ** -wheelNotches(e)));
-      cy.zoom({ level, renderedPosition: { x: e.clientX - rect.left, y: e.clientY - rect.top } });
+      wheelNotchesPending += wheelNotches(e);
+      wheelAt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      if (wheelFrame) return;
+      wheelFrame = requestAnimationFrame(() => {
+        wheelFrame = 0;
+        const notches = Math.max(-5, Math.min(5, wheelNotchesPending));
+        wheelNotchesPending = 0;
+        if (large && renderer?.data) {
+          // Large graphs: zoom the cached bitmap while the wheel moves, redraw once it stops (as Cytoscape does
+          // for its own wheel handling). Renderer internals are not in Cytoscape's typed API, hence the guards.
+          renderer.data.wheelZooming = true;
+          window.clearTimeout(wheelIdle);
+          wheelIdle = window.setTimeout(() => {
+            if (renderer.data) renderer.data.wheelZooming = false;
+            renderer.redrawHint?.("eles", true);
+            renderer.redraw?.();
+          }, 150);
+        }
+        const level = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cy.zoom() * (1 + WHEEL_ZOOM_STEP) ** -notches));
+        cy.zoom({ level, renderedPosition: wheelAt });
+      });
     };
     wrap.addEventListener("wheel", onWheel, { capture: true, passive: false });
 
@@ -410,7 +596,9 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       settled = true;
       publish();
     };
-    if (!reduced) {
+    const animateSettle = !reduced && !cached && !large;
+    if (!reduced && !cached && large) wrapEl.classList.add("graph-entering"); // large graphs: fade in only
+    if (animateSettle) {
       const finalPos = new Map(cy.nodes().map((n) => [n.id(), { ...n.position() }] as const));
       const ext = cy.nodes().boundingBox();
       const cx = (ext.x1 + ext.x2) / 2;
@@ -477,7 +665,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
     };
     handlers.current.onRendered?.({ nodes: cy.nodes().length, edges: cy.edges().length, layoutMs });
     }
-    if (reduced) finish();
+    if (!animateSettle) finish();
 
     return () => {
       window.clearTimeout(leaveTimer);
@@ -488,13 +676,15 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       stopDash();
       applyRef.current = () => {};
       wrap.removeEventListener("wheel", onWheel, { capture: true });
+      cancelAnimationFrame(wheelFrame);
+      window.clearTimeout(wheelIdle);
       resizeObserver.disconnect();
       setTooltip(null);
       cyRef.current = null;
       if (E2E_INSPECTOR) delete window.__bitflowGraph;
       cy.destroy();
     };
-  }, [graph]);
+  }
 
   // Theme switch: restyle existing elements in place (no rebuild, no layout, no viewport change). Applied without
   // transitions so ~1,200 elements don't animate; transitions are restored on the next frame.
@@ -508,6 +698,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
     if (!cy) return;
     cy.style().fromJson(graphStyle(theme, false)).update();
     if (prefersReducedMotion()) return;
+    if (largeRef.current) return; // large graphs run without element transitions
     const raf = requestAnimationFrame(() => cy.style().fromJson(graphStyle(theme, true)).update());
     return () => cancelAnimationFrame(raf);
   }, [theme]);
@@ -549,6 +740,12 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
   return (
     <div className="graph-wrap" ref={wrapRef}>
       <div ref={containerRef} className="graph-canvas" data-testid="graph-canvas" aria-label="Transaction graph" role="img" />
+      {layingOut && (
+        <div className="graph-overlay" role="status" data-testid="graph-laying-out">
+          <span className="spinner" aria-hidden="true" />
+          Laying out graph…
+        </div>
+      )}
       {tooltip && (
         <div className="graph-tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           {tooltip.text}
