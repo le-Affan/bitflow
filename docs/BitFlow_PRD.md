@@ -1,6 +1,78 @@
 # BitFlow : Bitcoin Transaction Visualizer
 ## MVP Product Requirements Document
 
+## MVP scope update
+
+*Recorded 2026-10-11. Everything in this section is decided unless listed under "Still open". Where it conflicts with the rest of this document, this section wins. Original lines it replaces are marked "(superseded, see MVP scope update)"; lines it only postpones are marked "(deferred, see MVP scope update)".*
+
+### Scope and build order
+
+1. The visualizer works end to end for one UTC day: **2026-10-09**.
+2. A daily job at a fixed time ingests the previous complete UTC day. It is observed running on 10 Oct, 11 Oct and later.
+3. Only after that: date presets and custom ranges (deferred; not decided, not designed).
+4. Only after that, and only if the daily flow works well: historical data before 2026-10-09 (out of scope now).
+
+There is **no historical backfill and no historical dataset** in the MVP. The first day loaded is 2026-10-09 UTC, through the normal ingestion process.
+
+### Storage
+
+- Only each day's **top 100 transactions** are kept, with their inputs and outputs that have addresses (address and value), plus tx id, block height and block timestamp. Everything else from that day is discarded after ranking.
+- A day is stored **all-or-nothing**: it counts as ingested only when every block of the day was fetched and the top 100 are stored. Re-running ingestion for a date replaces that date's data (safe to repeat).
+- If a day's ingestion fails, previously ingested days stay available.
+- Ingestion takes a **target date** as input, so earlier days can be loaded or re-ingested later.
+
+### Day, source, schedule
+
+- A day is a **UTC calendar day**. A block belongs to the day of its own block timestamp, never of any listing endpoint.
+- **Initial data source: blockchain.info**, because it is the only tested source that returns a full day in one request per block (139 requests for 2026-10-08, measured in `docs/data-source-spike.md`). Its rate limits are unpublished (unverified risk), so ingestion must fetch sequentially with a pause and retry with backoff. It stays behind the adapter/normalizer and must be replaceable.
+- **Known quirk (measured):** blockchain.info's blocks-by-day listing (`/blocks/{ms}`) returned the previous day's blocks when queried with midnight of the next day (querying 2026-10-09T00:00Z returned the blocks of 2026-10-08, see `docs/data-source-spike.md`).
+- The daily job runs once per day at **01:00 UTC**, configurable through an environment variable, and ingests the previous complete UTC day. What triggers the job is open (see below).
+
+### Ranking and eligibility
+
+- Ranking value of a transaction = its **largest output that has a standard address**.
+- A transaction is **eligible** only if it has at least one input with an address, at least one output with an address, and at least one edge remains after dropping self-loops (see Graph model). Coinbase transactions are therefore excluded.
+- The top 100 are chosen among eligible transactions only. **Ties at rank 100** are broken by tx id in ascending alphabetical order.
+- Outputs without an address (OP_RETURN, non-standard scripts) do not count for ranking and are not shown.
+
+### Graph model
+
+- One node per address.
+- Directed edges: every input address links to every output address of the same transaction (A + B → C + D gives A→C, A→D, B→C, B→D). Edges carry no BTC value (edges stay visually uniform).
+- **Self-loops are dropped:** if an output address is also an input address of the same transaction, no edge is created for that pair.
+- Repeated address pairs are aggregated into one visual edge. Clicking an edge lists its transactions, and each shows the amount that went to the output address.
+- **Node details:** the address, the number of top-100 transactions it appears in, and the total BTC it sent and received within the displayed top 100 only. The panel must state that these numbers cover only the displayed view, not the address's full history.
+- Graph size: a batch transaction can create many edges. Whether a cap is needed is open and must be measured on the 2026-10-09 data first.
+
+### App behaviour until ranges exist
+
+- The app shows **one UTC day at a time**, defaulting to the latest ingested day, with a simple selector listing ingested days.
+- If no day has been ingested yet, the app shows an **empty state** saying so.
+- Presets (24h, 7 days, 30 days) and custom ranges are deferred to build step 3.
+
+### Step-1 success criteria
+
+A user can:
+
+1. Open BitFlow.
+2. See the graph for the latest ingested day (default) or a selected ingested day.
+3. See that it contains the top 100 eligible transactions.
+4. See addresses as nodes and address-to-address relationships as edges.
+5. Inspect nodes, aggregated edges and individual transactions.
+6. Zoom and pan.
+7. Run the whole system through Docker.
+8. See a new day appear after the daily job succeeds.
+
+### Still open
+
+- What triggers the daily job (cron, in-app scheduler, separate container).
+- Graph size cap.
+- Date presets and custom ranges (build step 3).
+- Database choice.
+- Graph library choice.
+
+---
+
 ### 1. Product Overview
 
 **BitFlow** is a cloud-deployable Bitcoin transaction visualization application that allows users to explore the movement of Bitcoin.
@@ -22,10 +94,10 @@ The MVP is intended to demonstrate a **reproducible, Dockerized, continuously up
 
 Build a **cloud-deployable Bitcoin transaction visualizer** capable of:
 
-1. Maintaining at least one year of historical Bitcoin transaction data.
+1. Maintaining at least one year of historical Bitcoin transaction data. *(superseded, see MVP scope update)*
 2. Automatically adding new blockchain data once per day.
-3. Allowing users to select predefined or custom date ranges.
-4. Selecting the top 100 transactions for the requested period.
+3. Allowing users to select predefined or custom date ranges. *(deferred, see MVP scope update)*
+4. Selecting the top 100 transactions for the requested period. *(deferred, see MVP scope update)*
 5. Representing Bitcoin addresses and their relationships as an interactive graph.
 6. Allowing users to inspect transaction/address details interactively.
 7. Running reproducibly through Docker.
@@ -62,13 +134,13 @@ The default visualization should therefore remain visually simple, while detaile
 
 ## 4.1 Initial View
 
-When the application opens, BitFlow automatically displays the **latest successfully ingested day's data**.
+When the application opens, BitFlow automatically displays the **latest successfully ingested day's data**. *(superseded, see MVP scope update)*
 
 If the latest scheduled ingestion failed, BitFlow continues displaying the most recent successfully loaded dataset.
 
 ---
 
-## 4.2 Date Selection
+## 4.2 Date Selection *(deferred, see MVP scope update)*
 
 Users can select:
 
@@ -103,7 +175,7 @@ Input(s)
    +----> 1 BTC → Address C
 ```
 
-This transaction's ranking is determined by its largest output: **6 BTC**.
+This transaction's ranking is determined by its largest output: **6 BTC**. *(superseded, see MVP scope update)*
 
 Only outputs associated with standard identifiable Bitcoin addresses will be visualized.
 
@@ -119,7 +191,7 @@ The MVP does not attempt to determine whether multiple addresses belong to the s
 
 ### Edges
 
-Edges represent Bitcoin movement from one address to another.
+Edges represent Bitcoin movement from one address to another. *(superseded, see MVP scope update)*
 
 For a transaction such as:
 
@@ -158,7 +230,7 @@ The edge can then be selected to inspect the individual transactions that make u
 
 Clicking a node displays available information about the corresponding Bitcoin address.
 
-The exact information displayed will depend on the fields retained by the data model.
+The exact information displayed will depend on the fields retained by the data model. *(superseded, see MVP scope update)*
 
 ### Edge interaction
 
@@ -238,7 +310,7 @@ The ingestion system will run once per day.
 
 It will:
 
-1. Determine the latest blockchain data already stored.
+1. Determine the latest blockchain data already stored. *(superseded, see MVP scope update)*
 2. Request newly available blockchain data from the external API.
 3. Normalize the API response into BitFlow's internal data model.
 4. Store the required fields in the database.
@@ -249,9 +321,9 @@ If ingestion fails, the existing latest successful dataset remains available.
 
 ---
 
-# 11. Historical Data
+# 11. Historical Data *(deferred, see MVP scope update)*
 
-The MVP will initially contain approximately **one year of historical Bitcoin data**.
+The MVP will initially contain approximately **one year of historical Bitcoin data**. *(superseded, see MVP scope update)*
 
 Historical data will **not be deleted after one year**.
 
@@ -275,7 +347,7 @@ The architecture should allow storage and querying capacity to be expanded later
 
 # 12. Stored Data
 
-The MVP will store **only the blockchain fields required by BitFlow**.
+The MVP will store **only the blockchain fields required by BitFlow**. *(superseded, see MVP scope update)*
 
 The system does not need to retain complete raw transaction payloads.
 
@@ -357,7 +429,7 @@ The database should support:
 - Transaction ranking.
 - Address lookups.
 - Relationship queries.
-- Growth over multiple years.
+- Growth over multiple years. *(deferred, see MVP scope update)*
 - Dockerized deployment.
 - Future migration/scaling.
 
@@ -385,6 +457,8 @@ BitFlow services
 Deploy locally or on cloud infrastructure
 ```
 
+*(superseded, see MVP scope update)*: applies to "Dataset" in "Repository / Dataset"; no dataset is shipped.
+
 The MVP does not require:
 
 - Kubernetes
@@ -406,7 +480,7 @@ BitFlow is intended to function as a publicly accessible visualizer.
 
 # 19. Failure Handling
 
-The system must prioritize the **latest successfully loaded dataset**.
+The system must prioritize the **latest successfully loaded dataset**. *(superseded, see MVP scope update)*
 
 If a scheduled ingestion fails:
 
@@ -430,8 +504,8 @@ The MVP is considered successful if a user can:
 
 1. Open BitFlow.
 2. See the latest successfully ingested day's transaction graph.
-3. Select a preset or custom date range.
-4. Click **Visualize**.
+3. Select a preset or custom date range. *(deferred, see MVP scope update)*
+4. Click **Visualize**. *(deferred, see MVP scope update)*
 5. Receive a graph containing the top 100 qualifying transactions.
 6. See Bitcoin addresses as nodes.
 7. See address-to-address relationships as edges.
@@ -449,16 +523,16 @@ The MVP is considered successful if a user can:
 
 | Area | MVP Decision | Future Direction |
 |---|---|---|
-| Historical data | Start with 1 year | Grow indefinitely |
-| Retention | Keep all ingested data | Multi-year / full historical chain |
+| Historical data | Start with 1 year *(superseded, see MVP scope update)* | Grow indefinitely |
+| Retention | Keep all ingested data *(superseded, see MVP scope update)* | Multi-year / full historical chain |
 | Updates | Once per day | More frequent updates |
 | Data source | Public API | Swappable APIs / own Bitcoin node |
 | API cost | Free initially | Paid/provider-independent options |
 | Transactions shown | Top 100 | Configurable larger datasets |
-| Ranking | Largest individual output | More sophisticated significance metrics |
+| Ranking | Largest individual output *(superseded, see MVP scope update)* | More sophisticated significance metrics |
 | Nodes | Individual addresses | Wallet/entity clustering |
 | Transaction node | Not used | Optional transaction-level graph |
-| Edge representation | Aggregated | Drill-down / higher granularity |
+| Edge representation | Aggregated *(superseded, see MVP scope update)* | Drill-down / higher granularity |
 | Graph styling | Uniform | Value/activity-based visual encoding |
 | Address search | Not included | Possible future feature |
 | Authentication | None | Optional |
