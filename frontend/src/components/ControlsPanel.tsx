@@ -9,6 +9,8 @@ const BUBBLE_MS = 3000;
 type Anchor = "week" | "month" | "year" | "custom";
 
 interface Props {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   selected: Ymd | null;
   onSelect: (day: Ymd) => void;
   today: Ymd;
@@ -30,7 +32,8 @@ function ComingSoonBubble({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-export function ControlsPanel({ selected, onSelect, today, ingestedDays, daysStatus }: Props) {
+export function ControlsPanel(props: Props) {
+  const { collapsed, onToggleCollapsed, selected, onSelect, today, ingestedDays, daysStatus } = props;
   const [bubble, setBubble] = useState<{ anchor: Anchor; n: number } | null>(null);
   const [from, setFrom] = useState<Ymd | null>(null);
   const [to, setTo] = useState<Ymd | null>(null);
@@ -40,7 +43,16 @@ export function ControlsPanel({ selected, onSelect, today, ingestedDays, daysSta
     bubble?.anchor === anchor ? <ComingSoonBubble key={bubble.n} onDismiss={dismiss} /> : null;
 
   return (
-    <aside className="controls" aria-label="Controls" data-testid="controls-panel">
+    <aside className={`controls${collapsed ? " collapsed" : ""}`} aria-label="Controls" data-testid="controls-panel">
+      <button type="button" className="icon-button collapse-toggle" onClick={onToggleCollapsed}
+              aria-expanded={!collapsed} aria-controls="controls-content"
+              aria-label={collapsed ? "Expand controls" : "Collapse controls"} title={collapsed ? "Expand controls" : "Collapse controls"}>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2"
+             strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <div className="controls-content" id="controls-content" hidden={collapsed}>
       <section className="control-group">
         <h2>Day (UTC)</h2>
         <DatePicker label="Day" value={selected} onChange={onSelect} today={today} markedDays={ingestedDays}
@@ -75,6 +87,7 @@ export function ControlsPanel({ selected, onSelect, today, ingestedDays, daysSta
           {bubbleAt("custom")}
         </div>
       </section>
+      </div>
     </aside>
   );
 }

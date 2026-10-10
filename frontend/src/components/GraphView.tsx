@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Graph } from "../api/types";
 import { shorten } from "../lib/shorten";
+import type { Theme } from "../lib/theme";
 
 export type GraphSelection = { kind: "node"; address: string } | { kind: "edge"; source: string; target: string } | null;
 
@@ -21,6 +22,7 @@ interface Props {
   /** Click on empty canvas. */
   onBackgroundClick?: () => void;
   onRendered?: (counts: RenderedCounts) => void;
+  theme?: Theme;
 }
 
 interface Tooltip {
@@ -84,85 +86,95 @@ export function prefersReducedMotion(): boolean {
 
 // Uniform styling: every node the same size, every edge the same width. Colour changes only show interaction
 // (hover / selection), never value or significance.
-const COLORS = {
-  node: "#64748b",
-  edge: "#94a3b8",
-  accent: "#4f46e5",
-  accentSoft: "#818cf8",
-  accentStrong: "#4338ca",
-};
+const PALETTES = {
+  light: {
+    node: "#64748b", ring: "#ffffff", edge: "#94a3b8",
+    accent: "#4f46e5", accentSoft: "#818cf8", accentStrong: "#4338ca",
+    nodeDim: 0.16, edgeBase: 0.55, edgeDim: 0.06,
+  },
+  dark: {
+    node: "#94a3b8", ring: "#0f172a", edge: "#64748b",
+    accent: "#818cf8", accentSoft: "#a5b4fc", accentStrong: "#c7d2fe",
+    nodeDim: 0.2, edgeBase: 0.6, edgeDim: 0.08,
+  },
+} as const;
 
-function graphStyle(reduced: boolean): cytoscape.StylesheetJson {
-  const transition = reduced
-    ? {}
-    : { "transition-property": "background-color, line-color, target-arrow-color, underlay-opacity, underlay-padding",
-        "transition-duration": 160 };
+const TRANSITION_MS = 180;
+
+function graphStyle(theme: Theme, animate: boolean): cytoscape.StylesheetJson {
+  const c = PALETTES[theme];
+  // Transitions live on the base selectors so state changes ease both in and out.
+  const nodeTransition = animate
+    ? { "transition-property": "opacity, background-color, border-color, underlay-color, underlay-opacity, underlay-padding",
+        "transition-duration": TRANSITION_MS, "transition-timing-function": "ease-in-out" as const }
+    : {};
+  const edgeTransition = animate
+    ? { "transition-property": "opacity, line-color, target-arrow-color",
+        "transition-duration": TRANSITION_MS, "transition-timing-function": "ease-in-out" as const }
+    : {};
   return [
     {
       selector: "node",
       style: {
         width: 10,
         height: 10,
-        "background-color": COLORS.node,
+        "background-color": c.node,
         "border-width": 1.5,
-        "border-color": "#ffffff",
+        "border-color": c.ring,
         // Soft halo so nodes read as raised discs.
-        "underlay-color": COLORS.node,
+        "underlay-color": c.node,
         "underlay-opacity": 0.14,
         "underlay-padding": 3,
         "underlay-shape": "ellipse",
         label: "",
         "overlay-opacity": 0,
+        ...nodeTransition,
       },
     },
     {
       selector: "edge",
       style: {
         width: 1,
-        opacity: 0.55,
-        "line-color": COLORS.edge,
-        "target-arrow-color": COLORS.edge,
+        opacity: c.edgeBase,
+        "line-color": c.edge,
+        "target-arrow-color": c.edge,
         "target-arrow-shape": "triangle",
         "arrow-scale": 0.6,
         // Bezier separates parallel edges, so A->B and B->A are drawn as two distinct curves.
         "curve-style": "bezier",
         "control-point-step-size": 14,
         "overlay-opacity": 0,
+        ...edgeTransition,
       },
     },
-    { selector: "node.dimmed", style: { opacity: 0.16 } },
-    { selector: "edge.dimmed", style: { opacity: 0.06 } },
-    {
-      selector: "node.hl",
-      style: { "background-color": COLORS.accentSoft, "underlay-color": COLORS.accent, "underlay-opacity": 0.18, ...transition },
-    },
+    { selector: "node.dimmed", style: { opacity: c.nodeDim } },
+    { selector: "edge.dimmed", style: { opacity: c.edgeDim } },
+    { selector: "node.hl", style: { "background-color": c.accentSoft, "underlay-color": c.accent, "underlay-opacity": 0.2 } },
     {
       selector: "edge.hl",
       style: {
-        opacity: 0.95, "line-color": COLORS.accent, "target-arrow-color": COLORS.accent, "z-index": 10,
-        "line-style": "dashed", "line-dash-pattern": [7, 3], ...transition,
+        opacity: 0.95, "line-color": c.accent, "target-arrow-color": c.accent, "z-index": 10,
+        "line-style": "dashed", "line-dash-pattern": [7, 3],
       },
     },
-    {
-      selector: "node.focus",
-      style: { "background-color": COLORS.accent, "underlay-opacity": 0.3, "underlay-padding": 5, "z-index": 20 },
-    },
+    { selector: "node.focus", style: { "background-color": c.accent, "underlay-opacity": 0.32, "underlay-padding": 5, "z-index": 20 } },
     { selector: "edge.focus", style: { width: 1.5, "z-index": 20 } },
     {
       selector: "node.selected",
       style: {
-        "background-color": COLORS.accentStrong, "border-width": 2, "underlay-color": COLORS.accent,
-        "underlay-opacity": 0.35, "underlay-padding": 6, "z-index": 30,
+        "background-color": c.accentStrong, "border-width": 2, "underlay-color": c.accent,
+        "underlay-opacity": 0.38, "underlay-padding": 6, "z-index": 30,
       },
     },
     {
       selector: "edge.selected",
-      style: { width: 1.5, opacity: 1, "line-color": COLORS.accentStrong, "target-arrow-color": COLORS.accentStrong, "z-index": 30 },
+      style: { width: 1.5, opacity: 1, "line-color": c.accentStrong, "target-arrow-color": c.accentStrong, "z-index": 30 },
     },
   ];
 }
 
 const SETTLE_MS = 700; // load animation: nodes ease into the final layout
+const HOVER_GRACE_MS = 120; // keep a hover highlight briefly so gaps between elements don't flash the whole graph
 const DASH_MAX_EDGES = 240; // moving dash only when few enough edges are highlighted
 const GRID_PX = 24;
 
@@ -221,7 +233,7 @@ function separateOverlaps(cy: cytoscape.Core, minDistance: number, passes = 30):
   cy.batch(() => nodes.forEach((n, k) => n.position(pos[k])));
 }
 
-export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgroundClick, onRendered }: Props) {
+export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgroundClick, onRendered, theme = "light" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -230,6 +242,8 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
   handlers.current = { onNodeClick, onEdgeClick, onBackgroundClick, onRendered };
   const selectedRef = useRef<GraphElement | null>(null);
   const applyRef = useRef<() => void>(() => {});
+  const themeRef = useRef<Theme>(theme);
+  themeRef.current = theme;
 
   // (Re)build the graph whenever the data changes.
   useEffect(() => {
@@ -245,7 +259,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
           data: { id: edgeId(e.source, e.target), source: e.source, target: e.target, txCount: e.tx_count },
         })),
       ],
-      style: graphStyle(reduced),
+      style: graphStyle(themeRef.current, !reduced),
       layout: { name: "preset" },
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
@@ -274,8 +288,12 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       dashEdges.style("line-dash-offset", dashOffset);
       dashFrame = requestAnimationFrame(dashTick);
     };
+    let applied: GraphElement | null | undefined;
     const applyHighlight = () => {
       const focus = hovered ?? (selectedRef.current?.inside() ? selectedRef.current : null);
+      const selectedNow = selectedRef.current?.inside() ? selectedRef.current : null;
+      if (focus === applied && cy.elements(".selected").same(selectedNow ?? cy.collection())) return;
+      applied = focus;
       stopDash();
       cy.batch(() => {
         cy.elements().removeClass("hl focus dimmed selected");
@@ -294,19 +312,25 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
     applyRef.current = applyHighlight;
 
     const container = containerRef.current;
+    // Cursor and classes go on the wrapper, not on Cytoscape's container: Cytoscape watches its container's
+    // attributes and runs a full resize/redraw on every change.
+    const wrapEl = wrapRef.current!;
+    let leaveTimer = 0;
+    const enter = (el: GraphElement) => {
+      window.clearTimeout(leaveTimer);
+      hovered = el;
+      applyHighlight();
+      wrapEl.style.cursor = "pointer";
+    };
     cy.on("mouseover", "node", (evt) => {
       const n = evt.target as cytoscape.NodeSingular;
-      hovered = n;
-      applyHighlight();
-      container.style.cursor = "pointer";
+      enter(n);
       const p = n.renderedPosition();
       setTooltip({ x: p.x, y: p.y, text: shorten(n.id()) });
     });
     cy.on("mouseover", "edge", (evt) => {
       const e = evt.target as cytoscape.EdgeSingular;
-      hovered = e;
-      applyHighlight();
-      container.style.cursor = "pointer";
+      enter(e);
       const p = e.renderedMidpoint();
       const n = e.data("txCount") as number;
       setTooltip({
@@ -316,13 +340,15 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       });
     });
     cy.on("mouseout", "node, edge", () => {
-      hovered = null;
-      applyHighlight();
-      container.style.cursor = "";
-      setTooltip(null);
+      wrapEl.style.cursor = "";
+      window.clearTimeout(leaveTimer);
+      leaveTimer = window.setTimeout(() => {
+        hovered = null;
+        applyHighlight();
+        setTooltip(null);
+      }, HOVER_GRACE_MS);
     });
     // Dotted background texture follows pan and zoom so panning feels anchored (one element, cheap).
-    const wrapEl = wrapRef.current!;
     const syncGrid = () => {
       let size = GRID_PX * cy.zoom();
       while (size < GRID_PX / 2) size *= 2;
@@ -342,17 +368,21 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       if (evt.target === cy) handlers.current.onBackgroundClick?.();
     });
 
-    // Cytoscape only tracks window resizes; the side panels change the container size too. Keep the
-    // point that was in the middle of the view in the middle after a resize.
-    let size = { w: containerRef.current.clientWidth, h: containerRef.current.clientHeight };
+    // Panels opening, closing or collapsing resize the canvas. Keep every node where it is on screen (no zoom or
+    // pan jump): only compensate for the canvas's own left edge moving. Then redraw synchronously, because
+    // resizing a canvas clears it and Cytoscape would otherwise paint one blank frame before its next redraw.
+    let box = container.getBoundingClientRect();
+    // cy.renderer() exists at runtime but is not in Cytoscape's type definitions.
+    const renderNow = () =>
+      (cy as unknown as { renderer?: () => { render?: () => void } }).renderer?.()?.render?.();
     const resizeObserver = new ResizeObserver(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const next = { w: el.clientWidth, h: el.clientHeight };
-      if (next.w === size.w && next.h === size.h) return;
+      const next = container.getBoundingClientRect();
+      if (next.width === box.width && next.height === box.height && next.left === box.left) return;
+      const dx = box.left - next.left;
+      box = next;
       cy.resize();
-      cy.panBy({ x: (next.w - size.w) / 2, y: (next.h - size.h) / 2 });
-      size = next;
+      if (dx) cy.panBy({ x: dx, y: 0 });
+      renderNow();
     });
     resizeObserver.observe(containerRef.current);
 
@@ -389,7 +419,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
         const p = finalPos.get(n.id())!;
         n.position({ x: cx + (p.x - cx) * 0.55, y: cyy + (p.y - cyy) * 0.55 });
       }));
-      container.classList.add("graph-entering");
+      wrapEl.classList.add("graph-entering");
       settleLayout = cy.layout({
         name: "preset",
         positions: (n: cytoscape.NodeSingular) => finalPos.get(n.id())!,
@@ -450,6 +480,9 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
     if (reduced) finish();
 
     return () => {
+      window.clearTimeout(leaveTimer);
+      wrapEl.classList.remove("graph-entering");
+      wrapEl.style.cursor = "";
       settled = true;
       settleLayout?.stop();
       stopDash();
@@ -462,6 +495,22 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       cy.destroy();
     };
   }, [graph]);
+
+  // Theme switch: restyle existing elements in place (no rebuild, no layout, no viewport change). Applied without
+  // transitions so ~1,200 elements don't animate; transitions are restored on the next frame.
+  const firstTheme = useRef(true);
+  useEffect(() => {
+    if (firstTheme.current) {
+      firstTheme.current = false;
+      return;
+    }
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.style().fromJson(graphStyle(theme, false)).update();
+    if (prefersReducedMotion()) return;
+    const raf = requestAnimationFrame(() => cy.style().fromJson(graphStyle(theme, true)).update());
+    return () => cancelAnimationFrame(raf);
+  }, [theme]);
 
   // Reflect the current selection (stronger highlight, unrelated items dimmed while its panel is open).
   useEffect(() => {

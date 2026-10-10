@@ -1,6 +1,16 @@
+import { useEffect, useState } from "react";
+
 import { ApiError } from "../api/client";
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+/** Loading indicator. With `delayMs`, nothing is shown for fast responses, so panels don't flicker. */
+export function Loading({ label = "Loading…", delayMs = 0 }: { label?: string; delayMs?: number }) {
+  const [visible, setVisible] = useState(delayMs === 0);
+  useEffect(() => {
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setVisible(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  if (!visible) return <div className="status-placeholder" aria-busy="true" />;
   return (
     <div className="status status-loading" role="status" aria-busy="true">
       <span className="spinner" aria-hidden="true" />

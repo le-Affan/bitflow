@@ -1,29 +1,77 @@
 :root {
-  /* Neutral slate + one indigo accent (hover, selection, focus, primary actions). */
+  /* Light theme (default). Neutral slate + one indigo accent. One token per colour. */
+  color-scheme: light;
   --bg-top: #f8fafc;
   --bg-bottom: #eef2f7;
   --surface: #ffffff;
   --surface-2: #f8fafc;
+  --surface-pressed: #f1f5f9;
+  --header-bg: rgba(255, 255, 255, 0.85);
+  --control-bg: rgba(255, 255, 255, 0.92);
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
+  --card-border: rgba(226, 232, 240, 0.9);
   --text: #1e293b;
   --muted: #64748b;
+  --faint: #cbd5e1;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
+  --accent-contrast: #ffffff;
   --accent-soft: #eef2ff;
   --accent-ring: rgba(79, 70, 229, 0.35);
   --danger: #b42318;
-  --radius: 14px;
+  --graph-bg: #fcfdfe;
+  --grid-dot: rgba(100, 116, 139, 0.22);
+  --tooltip-bg: rgba(255, 255, 255, 0.97);
+  --bubble-bg: #1e293b;
+  --bubble-fg: #ffffff;
+  --scrollbar: #cbd5e1;
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 16px 32px -12px rgba(15, 23, 42, 0.08);
   --shadow-pop: 0 2px 4px rgba(15, 23, 42, 0.06), 0 12px 28px -6px rgba(15, 23, 42, 0.18);
+  --header-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 6px 16px -10px rgba(15, 23, 42, 0.18);
+  --radius: 14px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --theme-transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   line-height: 1.45;
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-top: #0f172a;
+  --bg-bottom: #0b1120;
+  --surface: #151e30;
+  --surface-2: #1b2539;
+  --surface-pressed: #222d44;
+  --header-bg: rgba(17, 24, 39, 0.85);
+  --control-bg: rgba(27, 37, 57, 0.92);
+  --border: #263247;
+  --border-strong: #3a4862;
+  --card-border: rgba(51, 65, 85, 0.6);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --faint: #475569;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-contrast: #0f172a;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --accent-ring: rgba(129, 140, 248, 0.5);
+  --danger: #f87171;
+  --graph-bg: #0f1727;
+  --grid-dot: rgba(148, 163, 184, 0.16);
+  --tooltip-bg: rgba(27, 37, 57, 0.97);
+  --bubble-bg: #e2e8f0;
+  --bubble-fg: #0f172a;
+  --scrollbar: #3a4862;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 32px -8px rgba(0, 0, 0, 0.55);
+  --header-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
-body { background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%) fixed; }
+body { background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%) fixed; color: var(--text); }
+* { scrollbar-color: var(--scrollbar) transparent; scrollbar-width: thin; }
+select, input { color: var(--text); background: var(--surface); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
 
 /* Buttons: hover, pressed and focus-visible states */
@@ -35,12 +83,12 @@ button {
               transform 0.08s var(--ease), color 0.15s var(--ease);
 }
 button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); }
-button:active:not(:disabled) { transform: translateY(1px); background: #f1f5f9; box-shadow: none; }
+button:active:not(:disabled) { transform: translateY(1px); background: var(--surface-pressed); box-shadow: none; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible, select:focus-visible, input:focus-visible {
   outline: none; box-shadow: 0 0 0 3px var(--accent-ring); border-color: var(--accent);
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 button.primary:active:not(:disabled) { background: var(--accent-hover); }
 
@@ -50,8 +98,8 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .topbar {
   position: relative; z-index: 5;
   display: flex; align-items: center; gap: 4px 20px; flex-wrap: wrap;
-  padding: 10px 20px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(6px);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 6px 16px -10px rgba(15, 23, 42, 0.18);
+  padding: 10px 20px; background: var(--header-bg); backdrop-filter: blur(6px);
+  box-shadow: var(--header-shadow); transition: var(--theme-transition);
 }
 .topbar .logo { font-size: 1.9rem; line-height: 1.1; margin: 0; font-weight: 700; letter-spacing: -0.02em; }
 .topbar .graph-summary { padding: 0; font-weight: 400; color: var(--muted); }
@@ -61,8 +109,8 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 
 /* Cards */
 .controls, .graph-section, .panel {
-  background: var(--surface); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius);
+  box-shadow: var(--shadow-card); transition: var(--theme-transition);
 }
 
 /* Controls panel (left) */
@@ -77,15 +125,15 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .bubble-anchor { position: relative; }
 .bubble {
   position: absolute; left: 8px; top: calc(100% + 2px); z-index: 30; display: flex; align-items: center; gap: 8px;
-  background: var(--text); color: #fff; font-size: 0.8rem; padding: 6px 6px 6px 10px; border-radius: 8px;
+  background: var(--bubble-bg); color: var(--bubble-fg); font-size: 0.8rem; padding: 6px 6px 6px 10px; border-radius: 8px;
   box-shadow: var(--shadow-pop); white-space: nowrap; animation: pop-in 0.18s var(--ease);
 }
 .bubble::before {
   content: ""; position: absolute; top: -5px; left: 14px; border: 5px solid transparent; border-top: 0;
-  border-bottom-color: var(--text);
+  border-bottom-color: var(--bubble-bg);
 }
-.bubble-close { background: transparent; color: #fff; border: none; box-shadow: none; padding: 0 4px; font-size: 1rem; line-height: 1; }
-.bubble-close:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.bubble-close { background: transparent; color: var(--bubble-fg); border: none; box-shadow: none; padding: 0 4px; font-size: 1rem; line-height: 1; }
+.bubble-close:hover:not(:disabled) { background: transparent; color: var(--bubble-fg); opacity: 0.75; }
 
 /* Date picker */
 .date-picker { position: relative; }
@@ -114,13 +162,13 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 }
 .day:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--accent-hover); }
 .day.today { border-color: var(--accent-ring); }
-.day.selected, .day.selected:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
-.day:disabled { color: #cbd5e1; opacity: 1; background: transparent; }
+.day.selected, .day.selected:hover:not(:disabled) { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.day:disabled { color: var(--faint); opacity: 1; background: transparent; }
 .day.marked::after, .legend .dot {
   content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
 }
 .day.marked::after { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); }
-.day.selected.marked::after { background: #fff; }
+.day.selected.marked::after { background: var(--accent-contrast); }
 .calendar-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 0.8rem; }
 .legend { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .calendar-footer .link { margin: 0; font-size: 0.8rem; }
@@ -135,27 +183,28 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .graph-wrap {
   position: relative; flex: 1; min-height: 0;
   /* Dotted texture; GraphView keeps it aligned with pan and zoom via these variables. */
-  background-color: #fcfdfe;
-  background-image: radial-gradient(circle, rgba(100, 116, 139, 0.22) 1px, transparent 1.3px);
+  background-color: var(--graph-bg);
+  background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1.3px);
+  transition: background-color 0.2s ease;
   background-size: var(--grid-size, 24px) var(--grid-size, 24px);
   background-position: var(--grid-x, 0) var(--grid-y, 0);
 }
 .graph-canvas { position: absolute; inset: 0; }
-.graph-canvas.graph-entering { animation: fade-in 0.5s var(--ease); }
+.graph-wrap.graph-entering .graph-canvas { animation: fade-in 0.5s var(--ease); }
 .graph-tooltip {
   position: absolute; transform: translate(-50%, calc(-100% - 12px)); pointer-events: none;
-  background: rgba(255, 255, 255, 0.97); color: var(--text); font-size: 0.8rem; padding: 5px 10px;
+  background: var(--tooltip-bg); color: var(--text); font-size: 0.8rem; padding: 5px 10px;
   border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-pop);
   white-space: nowrap; z-index: 5; animation: tooltip-in 0.14s var(--ease);
 }
 .graph-controls { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 4; }
-.graph-controls button { min-width: 34px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px -4px rgba(15, 23, 42, 0.12); }
+.graph-controls button { min-width: 34px; background: var(--control-bg); box-shadow: var(--shadow-pop); }
 
 /* Detail panels (right) */
 .panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; animation: panel-in 0.22s var(--ease); }
 .panel.closing { animation: panel-out 0.18s var(--ease) forwards; }
-.panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-.panel-header h2 { font-size: 1rem; margin: 0; }
+.panel-header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.panel-header h2 { font-size: 1rem; margin: 0; flex: 1; }
 .panel-body { padding: 12px 16px; overflow-y: auto; min-height: 0; }
 .panel h3 { font-size: 0.9rem; margin: 16px 0 6px; }
 .close { border: none; box-shadow: none; font-size: 1.3rem; line-height: 1; padding: 2px 8px; background: transparent; }
@@ -191,6 +240,53 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
   border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite;
 }
 
+/* Icon buttons (theme toggle, collapse, back, copy) */
+.icon-button {
+  display: inline-flex; align-items: center; justify-content: center; padding: 5px; line-height: 0;
+  color: var(--muted); background: transparent; border-color: transparent; box-shadow: none;
+}
+.icon-button:hover:not(:disabled) { color: var(--text); background: var(--surface-pressed); border-color: transparent; }
+.theme-toggle { margin-left: auto; width: 34px; height: 34px; border-color: var(--border); background: var(--surface); }
+.panel-header .back { width: 30px; height: 30px; }
+
+/* Collapsible controls panel */
+.controls { position: relative; transition: var(--theme-transition), flex-basis 0.22s var(--ease), width 0.22s var(--ease), padding 0.22s var(--ease); }
+.collapse-toggle { position: absolute; top: 10px; right: 8px; width: 28px; height: 28px; z-index: 2; }
+.collapse-toggle svg { transition: transform 0.22s var(--ease); }
+.controls-content { padding-top: 4px; }
+.controls.collapsed { flex-basis: 44px; width: 44px; padding: 10px 0; overflow: hidden; }
+.controls.collapsed .collapse-toggle { right: 7px; }
+.controls.collapsed .collapse-toggle svg { transform: rotate(180deg); }
+
+/* Edge panel */
+.edge-route { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.route-arrow { color: var(--muted); flex: none; }
+.address-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.chip-role { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.address-chip code { font-size: 0.82rem; }
+.copy-icon { width: 24px; height: 24px; padding: 4px; border-radius: 999px; }
+.copy-icon.copied { color: var(--accent); }
+.panel h3.edge-count { font-size: 1rem; font-weight: 650; margin: 18px 0 2px; }
+.edge-note { margin: 0 0 10px; font-size: 0.78rem; color: var(--muted); }
+.tx-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tx-card {
+  width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 12px;
+  text-align: left; padding: 9px 10px 9px 12px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--border); box-shadow: none;
+}
+.tx-card:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-ring); }
+.tx-card:hover .chevron { color: var(--accent); transform: translateX(2px); }
+.tx-main { display: flex; flex-direction: column; min-width: 0; }
+.tx-main code { font-size: 0.85rem; }
+.tx-time { font-size: 0.75rem; color: var(--muted); }
+.tx-amount { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
+.chevron { color: var(--muted); transition: transform 0.15s var(--ease), color 0.15s var(--ease); }
+.panel-content { min-height: 96px; } /* steady height while the next selection loads */
+.status-placeholder { min-height: 40px; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -204,6 +300,9 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
   .topbar .logo { font-size: 1.6rem; }
   .body { flex-direction: column; padding: 10px; gap: 10px; }
   .controls { flex: none; width: auto; overflow: visible; }
+  .controls.collapsed { flex-basis: auto; width: auto; height: 44px; padding: 0; }
+  .controls.collapsed .collapse-toggle svg { transform: rotate(-90deg); }
+  .collapse-toggle svg { transform: rotate(90deg); }
   .main { height: 75vh; flex: none; }
   @keyframes panel-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes panel-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px); } }
