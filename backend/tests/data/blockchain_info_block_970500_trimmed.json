@@ -1,0 +1,419 @@
+{
+ "_origin": "TEST FIXTURE. Real blockchain.info response for GET https://blockchain.info/block-height/970500?format=json (the data-source spike's sample block), fetched 2026-10-11. Trimmed: only 4 of the block's 4405 transactions kept (original indices [0, 267, 2, 94]: coinbase, 3-input tx with a no-address output, tx paying change back to its input address, simple 1-in/2-out). n_tx left as in the original. Nothing else edited. The spike's own saved copy was in a temp directory and no longer exists.",
+ "blocks": [
+  {
+   "hash": "00000000000000000001190ed1dcc169460315b60f7271ffc8d85dd41b63f363",
+   "ver": 536903680,
+   "prev_block": "00000000000000000001e1a493b8f6902702911c876179137d7ff23be71f99a0",
+   "mrkl_root": "9eea4ccf6ec847e3fa3604151b59563b6e20565ad1a5b3875216d9449a9c97d3",
+   "time": 1791470870,
+   "bits": 386014960,
+   "next_block": [
+    "000000000000000000007f286f5dc58017d7d1767647f5973c614953d26fabc7"
+   ],
+   "fee": 3957177,
+   "nonce": 2451002424,
+   "n_tx": 4405,
+   "size": 1613636,
+   "block_index": 970500,
+   "main_chain": true,
+   "height": 970500,
+   "weight": 3997937,
+   "tx": [
+    {
+     "hash": "b30cb61387a1fb94ba678830c10e88789c149d97b75740c342013506561761da",
+     "ver": 1,
+     "vin_sz": 1,
+     "vout_sz": 8,
+     "size": 535,
+     "weight": 2032,
+     "fee": 0,
+     "relayed_by": "0.0.0.0",
+     "lock_time": 1105559439,
+     "tx_index": 7683537222289056,
+     "double_spend": false,
+     "time": 1791470870,
+     "block_index": 970500,
+     "block_height": 970500,
+     "inputs": [
+      {
+       "sequence": 0,
+       "witness": "01200000000000000000000000000000000000000000000000000000000000000000",
+       "script": "0304cf0e2cfabe6d6de4a3e355a3d95a8aba0e8412a02f886b3c360d4a75711edab596f526aa9d6ffc10000000f09f909f092f4632506f6f6c2f65000000000000000000000000000000000000000000000000000000000000000000000005003509c5b1",
+       "index": 0,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 0,
+        "spending_outpoints": [
+         {
+          "tx_index": 7683537222289056,
+          "n": 0
+         }
+        ],
+        "n": 4294967295,
+        "tx_index": 0,
+        "script": ""
+       }
+      }
+     ],
+     "out": [
+      {
+       "type": 0,
+       "spent": false,
+       "value": 546,
+       "spending_outpoints": [],
+       "n": 0,
+       "tx_index": 7683537222289056,
+       "script": "76a914c6740a12d0a7d556f89782bf5faf0e12cf25a63988ac",
+       "addr": "1K6KoYC69NnafWJ7YgtrpwJxBLiijWqwa6"
+      },
+      {
+       "type": 0,
+       "spent": true,
+       "value": 316456631,
+       "spending_outpoints": [
+        {
+         "tx_index": 3227219226089960,
+         "n": 6
+        }
+       ],
+       "n": 1,
+       "tx_index": 7683537222289056,
+       "script": "76a91469f2a01f4ff9e6ac24df9062e9828753474b348088ac",
+       "addr": "1AfCc4F9c4VTYSE31PUe2kUEKs6ZxiDjxm"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 2,
+       "tx_index": 7683537222289056,
+       "script": "6a2d434f524501e2f8cefcdee51f48e3ce5c4deea3095c43369b36e7ec323813c943336c579e238228a8ebd096a7e5"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 3,
+       "tx_index": 7683537222289056,
+       "script": "6a10455853415401051b0f0e0e0b1f120013"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 4,
+       "tx_index": 7683537222289056,
+       "script": "6a2448617468f883f8b3dd8c92214c33b53898e2a37845b0a95c400c332cae0b22b19c03cb6f"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 5,
+       "tx_index": 7683537222289056,
+       "script": "6a4c2952534b424c4f434b3aece681db13a571a2ff920682b0f7478e529c667c003a39bfa6af291f008e0620"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 6,
+       "tx_index": 7683537222289056,
+       "script": "6a277379736a27fe29e41853ea0cdeb2e80463893da817d8db931e813567eb4e341e73e253046f2300"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 7,
+       "tx_index": 7683537222289056,
+       "script": "6a24aa21a9edc740ec22303af393112c1cf68a49daddbb8e6e752e319db2b59d1180924f2a93"
+      }
+     ]
+    },
+    {
+     "hash": "4abf61d6c1fc539aeba471ee419e989b2a9066066efa4df37633eabe5a318f00",
+     "ver": 2,
+     "vin_sz": 3,
+     "vout_sz": 4,
+     "size": 675,
+     "weight": 2100,
+     "fee": 3419,
+     "relayed_by": "0.0.0.0",
+     "lock_time": 0,
+     "tx_index": 19680267328838,
+     "double_spend": false,
+     "time": 1791470870,
+     "block_index": 970500,
+     "block_height": 970500,
+     "inputs": [
+      {
+       "sequence": 4294967293,
+       "witness": "0140798a795df548ca179f7af0797a595c64bf339437d9ef0637093709861d52a46d7e3dcda65bcef133521dca8bf942b73a89af9ca7d5c2240833537090cb738900",
+       "script": "",
+       "index": 0,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 116070,
+        "spending_outpoints": [
+         {
+          "tx_index": 19680267328838,
+          "n": 0
+         }
+        ],
+        "n": 7,
+        "tx_index": 1350654062673999,
+        "script": "51201d8ae7f36efe2f7be509bccdc642d658f99cf3bfd4a90d3441a0cacf6520e7d7",
+        "addr": "bc1prk9w0umwlchhhegfhnxuvskktrueeual6j5s6dzp5r9v7efqultsud3lj6"
+       }
+      },
+      {
+       "sequence": 4294967293,
+       "witness": "0140f39b2664fb160e2e74389f0637e757d3cdd788337da7207d13c19aed03dff041f2f49687fff0365b244071918b08aa16363088c189b7b5b28d535e38f2add94d",
+       "script": "",
+       "index": 1,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 115800,
+        "spending_outpoints": [
+         {
+          "tx_index": 19680267328838,
+          "n": 1
+         }
+        ],
+        "n": 6,
+        "tx_index": 1350654062673999,
+        "script": "51201d8ae7f36efe2f7be509bccdc642d658f99cf3bfd4a90d3441a0cacf6520e7d7",
+        "addr": "bc1prk9w0umwlchhhegfhnxuvskktrueeual6j5s6dzp5r9v7efqultsud3lj6"
+       }
+      },
+      {
+       "sequence": 4294967293,
+       "witness": "014072f5c8e86542d88dfff56244cc570db53011c4eb192c82cad52bef053d3b1721545238dbc8d1f4a5d499a9227e7df48a30c916cbe3406e98adce747c28c4f32e",
+       "script": "",
+       "index": 2,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 330,
+        "spending_outpoints": [
+         {
+          "tx_index": 19680267328838,
+          "n": 2
+         }
+        ],
+        "n": 11,
+        "tx_index": 3691832301050358,
+        "script": "5120e63dd38d7565d26a570dcd56fa438a4816048e852e0c0adf7e54eacd2a56f304",
+        "addr": "bc1puc7a8rt4vhfx54cde4t05su2fqtqfr599cxq4hm72n4v62jk7vzqxr5lwj"
+       }
+      }
+     ],
+     "out": [
+      {
+       "type": 0,
+       "spent": true,
+       "value": 113000,
+       "spending_outpoints": [
+        {
+         "tx_index": 7754565792932956,
+         "n": 2
+        }
+       ],
+       "n": 0,
+       "tx_index": 19680267328838,
+       "script": "5120bee9bbf94e948adba8b00e4f509f3227ceccf6d6f537fb707c425a7ad43fe049",
+       "addr": "bc1phm5mh72wjj9dh29spe84p8ejyl8veakk75mlkurugfd844plupysdkxvpj"
+      },
+      {
+       "type": 0,
+       "spent": true,
+       "value": 2590,
+       "spending_outpoints": [
+        {
+         "tx_index": 6107288994585899,
+         "n": 277
+        }
+       ],
+       "n": 1,
+       "tx_index": 19680267328838,
+       "script": "5120ee74c2a0417eae4fd2c64d84b6ae30fb02a13b39eba82a8cc3e1a0b3f020c7d7",
+       "addr": "bc1pae6v9gzp06hyl5kxfkztdt3slvp2zweeaw5z4rxruxst8upqclts75ye5e"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 0,
+       "spending_outpoints": [],
+       "n": 2,
+       "tx_index": 19680267328838,
+       "script": "6a4cc953484f52440104a1e7879252940f5e1e897794f1c80bde688ff56cdadbdeb1d12fc28781d8038748c448feb2e7017e00002a2e7bfe2ee176a868530649c15d84e1bd97abc91783a5b29d081574a39dc3dedf0810b8f2265bbfa67d35bd4b4aa855bc3bce148e55aa5c426b0be43a272c5d6e49d525eb5c5cc8366efd0775981b9e5a0d7617f60522e22ecdb34e4a4c3e5871d1b044e77370aadd4987d07a0816bac11283f787abbdc347202f57e8b0b14c458a2ca7fa863df437854c2e0c828fc3a4f4c72f889e2b8b"
+      },
+      {
+       "type": 0,
+       "spent": true,
+       "value": 113191,
+       "spending_outpoints": [
+        {
+         "tx_index": 8753661950981852,
+         "n": 0
+        }
+       ],
+       "n": 3,
+       "tx_index": 19680267328838,
+       "script": "51201d8ae7f36efe2f7be509bccdc642d658f99cf3bfd4a90d3441a0cacf6520e7d7",
+       "addr": "bc1prk9w0umwlchhhegfhnxuvskktrueeual6j5s6dzp5r9v7efqultsud3lj6"
+      }
+     ]
+    },
+    {
+     "hash": "b5c76e258a4d5fc45a8c8f224b22ac55934acb114ebd4eaf6709d2247f4a2823",
+     "ver": 1,
+     "vin_sz": 1,
+     "vout_sz": 2,
+     "size": 222,
+     "weight": 561,
+     "fee": 7050,
+     "relayed_by": "0.0.0.0",
+     "lock_time": 0,
+     "tx_index": 1236990576335425,
+     "double_spend": false,
+     "time": 1791470870,
+     "block_index": 970500,
+     "block_height": 970500,
+     "inputs": [
+      {
+       "sequence": 4294967293,
+       "witness": "02473044022072e274d6e7c7230b4a08e854cbfabacf3e1d3fad6e65f97aea45845fd7a84cb302200370866e6c810e8c1be2a4783e3315a858eca8a75579fb666a30ed516d0cd31601210349d67f12fc8810931b557aa9f656674082edac8986ec551e6a1a48a10678c8b5",
+       "script": "",
+       "index": 0,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 37308795,
+        "spending_outpoints": [
+         {
+          "tx_index": 1236990576335425,
+          "n": 0
+         }
+        ],
+        "n": 1,
+        "tx_index": 4691803575445388,
+        "script": "0014ecea20d7367ee53550e6ca8ac3a4eef4c0f7c92a",
+        "addr": "bc1qan4zp4ek0mjn258xe29v8f8w7nq00jf2nu9dqz"
+       }
+      }
+     ],
+     "out": [
+      {
+       "type": 0,
+       "spent": true,
+       "value": 2081669,
+       "spending_outpoints": [
+        {
+         "tx_index": 7599476203916318,
+         "n": 234
+        }
+       ],
+       "n": 0,
+       "tx_index": 1236990576335425,
+       "script": "0014062ad7753b7af36b90e6a919f2a5f1f93f00e0fa",
+       "addr": "bc1qqc4dwafm0tekhy8x4yvl9f03lylspc86amuhzq"
+      },
+      {
+       "type": 0,
+       "spent": false,
+       "value": 35220076,
+       "spending_outpoints": [],
+       "n": 1,
+       "tx_index": 1236990576335425,
+       "script": "0014ecea20d7367ee53550e6ca8ac3a4eef4c0f7c92a",
+       "addr": "bc1qan4zp4ek0mjn258xe29v8f8w7nq00jf2nu9dqz"
+      }
+     ]
+    },
+    {
+     "hash": "0152fe7640da4c60418c60dcf53e1465ffbf3d89235a3a92acffa9e7b4e4941a",
+     "ver": 2,
+     "vin_sz": 1,
+     "vout_sz": 2,
+     "size": 404,
+     "weight": 854,
+     "fee": 6420,
+     "relayed_by": "0.0.0.0",
+     "lock_time": 0,
+     "tx_index": 935257425376575,
+     "double_spend": false,
+     "time": 1791470870,
+     "block_index": 970500,
+     "block_height": 970500,
+     "inputs": [
+      {
+       "sequence": 4294967294,
+       "witness": "0400473044022015114668363549b2d381c91d298c68bb83f722d59209af9e718f108dece1969b02205255fdd9660b9aa9a56526d56cc8858dd190719ded44310ead5110bd4415fd3501473044022040cd8b236f858a403a573006003bd51f7409d7acad32a1a9f5e30e0cb82eea1102204d2bbdaf4eed53ed077dcb930bd2200bef24469ebb5b6fb568244e0b8f1b0c6d01695221038670f281511910c8f1766760e3443bb9ee3c8ef7d8747723e44469dd1578bffe210206e557618c5df9fb20a3f580632ee11b05d724bd99f6e01df92b5ccc3c2eaa332102f1db4fd7e30f0cf640df8efc312385498241d9562242b7030401c5923948218253ae",
+       "script": "2200206572d22a14725b0d5d38a2c39bdf0cd54eccb6a82888e2dff26d6ad3e44d5d5d",
+       "index": 0,
+       "prev_out": {
+        "type": 0,
+        "spent": true,
+        "value": 300000000,
+        "spending_outpoints": [
+         {
+          "tx_index": 935257425376575,
+          "n": 0
+         }
+        ],
+        "n": 0,
+        "tx_index": 2571114243869060,
+        "script": "a9147f1463882fd439c069afdb5a5af6085f53718f8387",
+        "addr": "3DGxAYYUA61WrrdbBac8Ra9eA9peAQwTJF"
+       }
+      }
+     ],
+     "out": [
+      {
+       "type": 0,
+       "spent": true,
+       "value": 92653580,
+       "spending_outpoints": [
+        {
+         "tx_index": 6264682040129204,
+         "n": 1
+        }
+       ],
+       "n": 0,
+       "tx_index": 935257425376575,
+       "script": "a9147f1463882fd439c069afdb5a5af6085f53718f8387",
+       "addr": "3DGxAYYUA61WrrdbBac8Ra9eA9peAQwTJF"
+      },
+      {
+       "type": 0,
+       "spent": true,
+       "value": 207340000,
+       "spending_outpoints": [
+        {
+         "tx_index": 1948696338030195,
+         "n": 0
+        }
+       ],
+       "n": 1,
+       "tx_index": 935257425376575,
+       "script": "a9142ada09df1afaffa2f8dc7aaa012d4f582ebf9a5287",
+       "addr": "35bbWBhyL1BMwcCHFhcNdogGX2BmtNB4G9"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

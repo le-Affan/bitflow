@@ -8,6 +8,9 @@ Run everything from the repository root with Docker Compose (needs a `.env`, cop
 docker compose up -d --build                                  # postgres + backend on 127.0.0.1:8000
 docker compose run --rm backend alembic upgrade head          # apply migrations
 docker compose --profile test run --rm --build backend-test   # run tests against the real postgres container
+docker compose run --rm --build backend python -m app.ingestion --date 2026-10-09   # ingest one complete UTC day
 ```
+
+Ingestion (`app/ingestion/`) reads blocks through the `BlockSource` protocol; the only implementation is the blockchain.info adapter in `app/sources/blockchain_info/`. Tuning (pause, retries, timeouts, margin) comes from the `INGEST_*` variables in `.env.example`. Exit codes: 0 stored, 1 failed (nothing stored), 2 invalid date, 3 rate limited.
 
 The tests use a separate database (`POSTGRES_TEST_DB`, default `bitflow_test`) that they create if missing and wipe on every run.
