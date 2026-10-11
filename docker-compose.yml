@@ -1,16 +1,34 @@
 name: bitflow
 
+# `docker compose up -d` starts: postgres -> db-init (seeds an empty database once) -> migrate -> backend, scheduler,
+# frontend. Settings come from .env (see .env.example).
+
+x-backend-build: &backend-build
+  context: ./backend
+  dockerfile: ../docker/backend.Dockerfile
+  target: base
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  BLOCKCHAIN_INFO_BASE_URL: ${BLOCKCHAIN_INFO_BASE_URL:-}
+  INGEST_REQUEST_PAUSE_SECONDS: ${INGEST_REQUEST_PAUSE_SECONDS:-}
+  INGEST_MAX_RETRIES: ${INGEST_MAX_RETRIES:-}
+  INGEST_BACKOFF_BASE_SECONDS: ${INGEST_BACKOFF_BASE_SECONDS:-}
+  INGEST_CONNECT_TIMEOUT_SECONDS: ${INGEST_CONNECT_TIMEOUT_SECONDS:-}
+  INGEST_READ_TIMEOUT_SECONDS: ${INGEST_READ_TIMEOUT_SECONDS:-}
+  INGEST_MARGIN_BLOCKS: ${INGEST_MARGIN_BLOCKS:-}
+
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    # Not published on the host: use `docker compose exec postgres psql -U <user> -d <db>`.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -18,26 +36,54 @@ services:
       retries: 10
       start_period: 10s
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
-      target: base
+  # One-shot: if the database has no tables yet, restore ./seed/bitflow.dump (if present). Never runs a second seed.
+  db-init:
+    image: postgres:17-alpine
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      BLOCKCHAIN_INFO_BASE_URL: ${BLOCKCHAIN_INFO_BASE_URL:-}
-      INGEST_REQUEST_PAUSE_SECONDS: ${INGEST_REQUEST_PAUSE_SECONDS:-}
-      INGEST_MAX_RETRIES: ${INGEST_MAX_RETRIES:-}
-      INGEST_BACKOFF_BASE_SECONDS: ${INGEST_BACKOFF_BASE_SECONDS:-}
-      INGEST_CONNECT_TIMEOUT_SECONDS: ${INGEST_CONNECT_TIMEOUT_SECONDS:-}
-      INGEST_READ_TIMEOUT_SECONDS: ${INGEST_READ_TIMEOUT_SECONDS:-}
-      INGEST_MARGIN_BLOCKS: ${INGEST_MARGIN_BLOCKS:-}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./seed:/seed:ro,z
+      - ./docker/db-init.sh:/db-init.sh:ro,z
+    command: ["/db-init.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One-shot: brings the schema up to date (no-op when the seed already has the latest schema).
+  migrate:
+    build: *backend-build
+    environment: *backend-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  backend:
+    build: *backend-build
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # Ingests every missing complete UTC day: once at start, then daily at DAILY_INGEST_TIME_UTC. Runs on its own;
+  # the backend keeps serving the stored days meanwhile.
+  scheduler:
+    build: *backend-build
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      DAILY_INGEST_TIME_UTC: ${DAILY_INGEST_TIME_UTC:-00:30}
+    command: ["python", "-m", "app.ingestion.scheduler"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   # Runs the test suite against the real postgres service. Not started by `docker compose up`.
   backend-test:
@@ -55,6 +101,7 @@ services:
         condition: service_healthy
 
   frontend:
+    restart: unless-stopped
     build:
       context: ./frontend
       dockerfile: ../docker/frontend.Dockerfile
