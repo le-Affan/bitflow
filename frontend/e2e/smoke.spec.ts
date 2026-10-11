@@ -73,9 +73,12 @@ test("graph, node panel, edge panel, transaction details, zoom, day selector", a
   await page.getByRole("button", { name: "Reset view" }).click();
   expect(await allNodesInView(page)).toBe(true);
 
-  // Day selection (calendar in the controls panel): pick each ingested day; the graph re-renders for it.
+  // Day selection (calendar in the controls panel): pick up to 5 ingested days spread over the list (it can hold
+  // thousands); the graph re-renders for each.
   const days = await ingestedDays(request);
-  for (const { date } of days) {
+  const step = Math.max(1, Math.floor((days.length - 1) / 4));
+  const sample = [...new Set([...days.filter((_, i) => i % step === 0).slice(0, 4), days[days.length - 1]])];
+  for (const { date } of sample) {
     await pickDate(page, date);
     await expect(page.getByTestId("summary-day")).toHaveText(date);
     await waitForGraph(page);

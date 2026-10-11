@@ -11,8 +11,13 @@ export const MOCK_EMPTY_API = process.env.E2E_MOCK_EMPTY_API === "1";
 
 const EMPTY_404 = { detail: { code: "no_ingested_days", message: "No day has been ingested yet." } };
 
-function emptyResponse(path: string): { status: number; body: unknown } {
-  return path === "/api/days" ? { status: 200, body: [] } : { status: 404, body: EMPTY_404 };
+// Like the real backend with an empty database: an explicit ?day= answers day_not_ingested, no day answers
+// no_ingested_days.
+function emptyResponse(url: URL): { status: number; body: unknown } {
+  if (url.pathname === "/api/days") return { status: 200, body: [] };
+  const day = url.searchParams.get("day");
+  if (day) return { status: 404, body: { detail: { code: "day_not_ingested", message: `Day ${day} has not been ingested.` } } };
+  return { status: 404, body: EMPTY_404 };
 }
 
 export const test = base.extend({
@@ -20,7 +25,7 @@ export const test = base.extend({
     if (MOCK_EMPTY_API) {
       // Registered first, so routes added later by a test (states.spec.ts) take precedence.
       await page.route(`${API}/api/**`, async (route) => {
-        const { status, body } = emptyResponse(new URL(route.request().url()).pathname);
+        const { status, body } = emptyResponse(new URL(route.request().url()));
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body),
                               headers: { "Access-Control-Allow-Origin": "*" } });
       });
@@ -33,7 +38,7 @@ export { expect } from "@playwright/test";
 
 /** GET an API path directly (not through the page). Honors E2E_MOCK_EMPTY_API. */
 export async function apiJson<T>(request: APIRequestContext, path: string): Promise<{ status: number; body: T }> {
-  if (MOCK_EMPTY_API) return emptyResponse(new URL(path, API).pathname) as { status: number; body: T };
+  if (MOCK_EMPTY_API) return emptyResponse(new URL(path, API)) as { status: number; body: T };
   const r = await request.get(`${API}${path}`);
   return { status: r.status(), body: (await r.json()) as T };
 }
