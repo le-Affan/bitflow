@@ -46,6 +46,13 @@ export function isValidYmd(value: string): boolean {
   return parseYmd(value) !== null;
 }
 
+/** UTC day of the Bitcoin genesis block (a protocol fact, not stored data). Nothing can exist before it. */
+export const FIRST_BITCOIN_DAY: Ymd = "2009-01-03";
+
+export function isBeforeBitcoin(value: Ymd): boolean {
+  return value < FIRST_BITCOIN_DAY;
+}
+
 /** Today's date in UTC. `now` is injectable for tests; only its UTC fields are read. */
 export function todayUtc(now: Date = new Date()): Ymd {
   return formatYmd(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate());

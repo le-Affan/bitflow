@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, api, isEmptyState } from "./api/client";
+import { ApiError, api, isCheckedEmptyDay, isEmptyState } from "./api/client";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { GraphView, prefersReducedMotion, type GraphSelection, type RenderedCounts } from "./components/GraphView";
 import { EdgePanel, NodePanel } from "./components/Panels";
 import { EmptyState, ErrorBox, Loading } from "./components/Status";
 import { useAsync } from "./hooks/useAsync";
-import { todayUtc, type Ymd } from "./lib/dates";
+import { FIRST_BITCOIN_DAY, isBeforeBitcoin, todayUtc, type Ymd } from "./lib/dates";
 import { applyTheme, loadTheme, saveTheme, type Theme } from "./lib/theme";
 
 const PANEL_EXIT_MS = 260; // matches the CSS close transition (250 ms) plus a frame
@@ -46,12 +46,27 @@ function NoData() {
   );
 }
 
+/** A valid day whose graph is empty by fact (not an error, not missing data). */
+function EmptyDay({ testId, title, detail }: { testId: string; title: string; detail: string }) {
+  return (
+    <div className="status status-nodata" data-testid={testId}>
+      <p>{title}</p>
+      <p className="muted small">{detail}</p>
+    </div>
+  );
+}
+
+function BeforeBitcoin() {
+  return <EmptyDay testId="before-bitcoin" title="Before the first Bitcoin block"
+                   detail={`The first Bitcoin block was mined on ${FIRST_BITCOIN_DAY} (UTC), so this day has no transactions.`} />;
+}
+
 function NothingIngested() {
   return <EmptyState title="No data yet"><p>{EMPTY_TEXT}</p></EmptyState>;
 }
 
 function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary | null) => void; theme: Theme }) {
-  const graph = useAsync(() => api.graph(day), [day]);
+  const graph = useAsync((signal) => api.graph(day, signal), [day]);
   const [selection, setSelection] = useState<GraphSelection>(null);
   const [counts, setCounts] = useState<RenderedCounts | null>(null);
   // The panel slot stays mounted and animates its width. While it closes, the last selection keeps being shown
@@ -89,6 +104,9 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
     if (graph.error instanceof ApiError && graph.error.code === "day_not_ingested") return <NoData />;
     return <ErrorBox error={graph.error} onRetry={graph.reload} what="the graph" />;
   }
+  if (isCheckedEmptyDay(graph.data))
+    return <EmptyDay testId="empty-day" title="0 eligible transactions on this day"
+                     detail="This day was checked: no transaction met the ranking rule, so the graph is empty." />;
   return (
     <div className="workspace">
       <section className="graph-section">
@@ -135,7 +153,7 @@ export function App() {
     content = isEmptyState(days.error) ? <NothingIngested />
       : <ErrorBox error={days.error} onRetry={days.reload} what="the list of days" />;
   else if (!selected) content = <NothingIngested />;
-  else if (!ingested.has(selected)) content = <NoData />;
+  else if (isBeforeBitcoin(selected)) content = <BeforeBitcoin />;
   else content = <GraphArea key={selected} day={selected} onSummary={onSummary} theme={theme} />;
 
   return (

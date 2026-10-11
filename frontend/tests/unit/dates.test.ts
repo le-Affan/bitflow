@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  addDays, addMonths, clampYearMonth, daysInMonth, isLeapYear, isSelectable, isValidYmd, longLabel, monthGrid,
+  addDays, addMonths, clampYearMonth, daysInMonth, FIRST_BITCOIN_DAY, isBeforeBitcoin, isLeapYear, isSelectable,
+  isValidYmd, longLabel, monthGrid,
   moveToMonth, parseYmd, todayUtc, weekdayIndex,
 } from "../../src/lib/dates";
 
@@ -119,5 +120,16 @@ describe("month and year navigation", () => {
     expect(grid.flat().filter(Boolean)).toHaveLength(28);
     expect(grid.every((w) => w.length === 7)).toBe(true);
     expect(monthGrid({ year: 2024, month: 2 }).flat().filter(Boolean)).toHaveLength(29);
+  });
+});
+
+describe("before the first Bitcoin block", () => {
+  it("only days before the genesis day (2009-01-03, a protocol fact) count as before Bitcoin", () => {
+    expect(FIRST_BITCOIN_DAY).toBe("2009-01-03");
+    expect(isBeforeBitcoin("2009-01-02")).toBe(true);
+    expect(isBeforeBitcoin("2008-06-01")).toBe(true);
+    expect(isBeforeBitcoin("0001-01-01")).toBe(true);
+    expect(isBeforeBitcoin("2009-01-03")).toBe(false);
+    expect(isBeforeBitcoin("2009-01-04")).toBe(false);
   });
 });

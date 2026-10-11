@@ -21,6 +21,8 @@ export interface Graph {
   transaction_count: number;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** Only present for a day that was checked and had 0 eligible transactions. */
+  status?: string;
 }
 
 export interface AddressSummary {

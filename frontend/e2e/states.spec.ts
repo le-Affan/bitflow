@@ -82,3 +82,81 @@ test("network failure on the day list shows retry", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("Could not load the list of days");
   await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
 });
+
+// Day states. TEST FIXTURES: the days, counts and the status payload are synthetic; 2008-06-01 is any day before
+// the Bitcoin genesis day (2009-01-03, a protocol fact).
+const fxEmptyDay = "2025-03-10";
+const fxEmptyGraph = { day: fxEmptyDay, transaction_count: 0, nodes: [], edges: [], status: "no_eligible_transactions" };
+
+function dayStatesApi(path: string, url: URL): { status: number; body: unknown } {
+  if (path === "/api/days") return { status: 200, body: fxDays };
+  const day = url.searchParams.get("day") ?? "2025-03-15";
+  if (day === fxEmptyDay) return { status: 200, body: fxEmptyGraph };
+  if (fxGraphs[day]) return { status: 200, body: fxGraphs[day] };
+  return { status: 404, body: { detail: { code: "day_not_ingested", message: `Day ${day} has not been ingested.` } } };
+}
+
+async function expectNoErrorAndNoGraph(page: Page) {
+  await expect(page.getByTestId("graph-canvas")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+}
+
+test("checked day with 0 eligible transactions shows an empty graph message, not an error", async ({ page }) => {
+  await mockApi(page, dayStatesApi);
+  await page.goto("/");
+  await waitForGraph(page);
+  await pickDate(page, fxEmptyDay); // not in /api/days, still selectable and asked from the API
+  await expect(page.getByTestId("empty-day")).toContainText("0 eligible transactions on this day");
+  await expect(page.getByTestId("summary-day")).toHaveText(fxEmptyDay);
+  await expect(page.getByTestId("graph-summary")).toContainText("0 transactions");
+  await expect(page.getByTestId("no-data")).toHaveCount(0);
+  await expectNoErrorAndNoGraph(page);
+});
+
+test("a day before the first Bitcoin block shows that message without asking the API", async ({ page }) => {
+  const graphDays: string[] = [];
+  await mockApi(page, (path, url) => {
+    if (path === "/api/graph") graphDays.push(url.searchParams.get("day") ?? "");
+    return dayStatesApi(path, url);
+  });
+  await page.goto("/");
+  await waitForGraph(page);
+  await pickDate(page, "2008-06-01");
+  await expect(page.getByTestId("before-bitcoin")).toContainText("Before the first Bitcoin block");
+  await expectNoErrorAndNoGraph(page);
+  expect(graphDays).not.toContain("2008-06-01");
+});
+
+test("a day never loaded shows 'No data available'", async ({ page }) => {
+  await mockApi(page, dayStatesApi);
+  await page.goto("/");
+  await waitForGraph(page);
+  await pickDate(page, "2025-03-12");
+  await expect(page.getByTestId("no-data")).toHaveText("No data available");
+  await expectNoErrorAndNoGraph(page);
+});
+
+test("switching days quickly never shows the outdated graph", async ({ page }) => {
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  const aborted: string[] = [];
+  page.on("requestfailed", (r) => aborted.push(new URL(r.url()).searchParams.get("day") ?? ""));
+  await page.route(`${API}/api/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("day") === "2025-03-14") await held; // slow day: answers only after the switch
+    const { status, body } = dayStatesApi(url.pathname, url);
+    await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body),
+                          headers: { "Access-Control-Allow-Origin": "*" } }).catch(() => {}); // request may be aborted
+  });
+  await page.goto("/");
+  await waitForGraph(page);
+  await pickDate(page, "2025-03-14"); // slow request starts
+  await pickDate(page, "2025-03-15"); // switch before it answers
+  await page.waitForFunction(() => window.__bitflowGraph?.edgeCount() === 1);
+  release(); // the outdated answer arrives now
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId("summary-day")).toHaveText("2025-03-15");
+  expect(await graphInfo(page)).toMatchObject({ nodes: 2, edges: 1 });
+  expect(aborted).toContain("2025-03-14"); // the outdated request was cancelled, not only ignored
+});

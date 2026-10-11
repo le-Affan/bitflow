@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, createApiClient, isEmptyState, toApiError } from "../../src/api/client";
+import { ApiError, createApiClient, isCheckedEmptyDay, isEmptyState, toApiError } from "../../src/api/client";
 
 // fetch is mocked in every test; all dates, addresses and counts below are synthetic.
 function json(status: number, body: unknown): Response {
@@ -75,5 +75,27 @@ describe("API client", () => {
   it("rejects invalid JSON on success", async () => {
     const client = createApiClient("", vi.fn().mockResolvedValue(new Response("not json", { status: 200 })));
     await expect(client.days()).rejects.toMatchObject({ code: "invalid_response" });
+  });
+});
+
+describe("graph day states", () => {
+  it("tells a checked-empty day (200 + status) apart from a stored day", async () => {
+    const empty = { day: "2001-02-03", transaction_count: 0, nodes: [], edges: [], status: "no_eligible_transactions" };
+    const stored = { day: "2001-02-04", transaction_count: 1, nodes: [{ address: "fx-a" }, { address: "fx-b" }],
+                     edges: [{ source: "fx-a", target: "fx-b", tx_count: 1 }] };
+    const client = createApiClient("", vi.fn(async (url: RequestInfo | URL) => json(200, String(url).includes("02-03") ? empty : stored)));
+    expect(isCheckedEmptyDay(await client.graph("2001-02-03"))).toBe(true);
+    expect(isCheckedEmptyDay(await client.graph("2001-02-04"))).toBe(false);
+  });
+
+  it("passes the abort signal to fetch, so an outdated graph request can be cancelled", async () => {
+    const fetchMock = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    }));
+    const controller = new AbortController();
+    const pending = createApiClient("", fetchMock).graph("2001-02-03", controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toBeInstanceOf(ApiError);
+    expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: controller.signal });
   });
 });

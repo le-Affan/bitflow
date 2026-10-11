@@ -13,9 +13,15 @@ export class ApiError extends Error {
 }
 
 export const NO_INGESTED_DAYS = "no_ingested_days";
+export const NO_ELIGIBLE_TRANSACTIONS = "no_eligible_transactions";
 
 export function isEmptyState(error: unknown): boolean {
   return error instanceof ApiError && error.code === NO_INGESTED_DAYS;
+}
+
+/** A day that was checked and had 0 eligible transactions (200 with an empty graph), as opposed to a stored day. */
+export function isCheckedEmptyDay(graph: Graph): boolean {
+  return graph.status === NO_ELIGIBLE_TRANSACTIONS;
 }
 
 type Fetch = typeof fetch;
@@ -46,13 +52,13 @@ export function toApiError(status: number, body: unknown): ApiError {
 export function createApiClient(baseUrl: string, fetchImpl: Fetch = (...args) => fetch(...args)) {
   const base = baseUrl.replace(/\/+$/, "");
 
-  async function get<T>(path: string, params: Record<string, string | undefined> = {}): Promise<T> {
+  async function get<T>(path: string, params: Record<string, string | undefined> = {}, signal?: AbortSignal): Promise<T> {
     const query = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) query.set(k, v);
     const qs = query.toString();
     let response: Response;
     try {
-      response = await fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, { headers: { Accept: "application/json" } });
+      response = await fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, { headers: { Accept: "application/json" }, signal });
     } catch (e) {
       throw new ApiError(null, "network_error", `Could not reach the BitFlow API (${(e as Error).message}).`);
     }
@@ -69,7 +75,7 @@ export function createApiClient(baseUrl: string, fetchImpl: Fetch = (...args) =>
   const enc = encodeURIComponent;
   return {
     days: () => get<Day[]>("/api/days"),
-    graph: (day?: string) => get<Graph>("/api/graph", { day }),
+    graph: (day?: string, signal?: AbortSignal) => get<Graph>("/api/graph", { day }, signal),
     address: (day: string, address: string) => get<AddressSummary>(`/api/addresses/${enc(address)}`, { day }),
     edge: (day: string, source: string, target: string) => get<EdgeDetail>("/api/edges", { day, source, target }),
     transaction: (day: string, txid: string) => get<TransactionDetail>(`/api/transactions/${enc(txid)}`, { day }),
