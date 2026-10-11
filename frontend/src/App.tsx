@@ -5,6 +5,7 @@ import type { Scope } from "./api/types";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { GraphView, prefersReducedMotion, type GraphSelection, type RenderedCounts } from "./components/GraphView";
 import { EdgePanel, NodePanel } from "./components/Panels";
+import { RankingInfo } from "./components/RankingInfo";
 import { EmptyState, ErrorBox, Loading } from "./components/Status";
 import { useAsync } from "./hooks/useAsync";
 import { FIRST_BITCOIN_DAY, isBeforeBitcoin, todayUtc, type Ymd } from "./lib/dates";
@@ -168,7 +169,13 @@ export function App() {
         {summary && (
           <p className="graph-summary" data-testid="graph-summary">
             <span data-testid="summary-day">{selected && scopeLabel(selected)}</span>{" · "}
-            {summary.transactions} transactions
+            {summary.transactions > 0 ? (
+              <span className="summary-top" data-testid="summary-transactions">
+                Top {summary.transactions} transaction{summary.transactions === 1 ? "" : "s"} <RankingInfo />
+              </span>
+            ) : (
+              <>{summary.transactions} transactions</>
+            )}
             {summary.counts && (
               <>
                 {" · "}

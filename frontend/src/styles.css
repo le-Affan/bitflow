@@ -100,6 +100,30 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .topbar .logo { font-size: 1.9rem; line-height: 1.1; margin: 0; font-weight: 700; letter-spacing: -0.02em; }
 .topbar .graph-summary { padding: 0; font-weight: 400; color: var(--muted); }
 
+/* Ranking info: "i" button with a tooltip below it (hover, keyboard focus or tap). */
+.info { position: relative; display: inline-block; vertical-align: 1px; }
+.info-button {
+  width: 16px; height: 16px; padding: 0; border-radius: 50%; font-size: 0.68rem; font-weight: 700; line-height: 14px;
+  font-family: Georgia, "Times New Roman", serif; font-style: italic; color: var(--muted); background: transparent;
+  border: 1px solid var(--border-strong); box-shadow: none; cursor: help;
+}
+.info-button:hover:not(:disabled), .info.open .info-button { color: var(--accent); border-color: var(--accent); background: transparent; }
+.info-tip {
+  display: none; position: absolute; top: calc(100% + 10px); left: -16px; z-index: 40;
+  width: min(380px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 10px; text-align: left;
+  background: var(--tooltip-bg); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-pop);
+  font-size: 0.8rem; line-height: 1.45; white-space: normal;
+}
+.info-tip strong { display: block; font-weight: 600; font-size: 0.85rem; }
+.info-tip ul { margin: 6px 0 0; padding-left: 18px; }
+.info-tip li + li { margin-top: 4px; }
+.info:hover .info-tip, .info:focus-within .info-tip, .info.open .info-tip { display: block; animation: fade-in 0.14s var(--ease); }
+@media (max-width: 640px) {
+  /* Narrow header: anchor the tooltip to the header's inner edges instead of the icon, so it never overflows. */
+  .info { position: static; }
+  .info-tip { left: 16px; right: 16px; width: auto; }
+}
+
 .body { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 14px; }
 .main { flex: 1; min-height: 0; min-width: 0; display: flex; }
 

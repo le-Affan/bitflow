@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
-import { API, graphInfo, openCalendarAt, pickDate, pickerButton, waitForGraph } from "./helpers";
+import { API, graphInfo, openCalendarAt, pickDate, pickerButton, SHOTS, waitForGraph } from "./helpers";
 
 // UI states with the API fully mocked by route interception. Never touches the real database.
 // TEST FIXTURES: every date, address and count below is synthetic, not real chain data. The dates are a
@@ -245,4 +245,48 @@ test("custom range: To waits for From and never goes before it; pre-2009 start c
   await apply.click();
   await expect(page.getByTestId("no-data")).toHaveText("No data available");
   await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("header shows 'Top N transactions' with a ranking-rule tooltip on hover, focus and tap", async ({ page }) => {
+  await mockApi(page, rangeApi);
+  await page.goto("/");
+  await waitForGraph(page);
+  await expect(page.getByTestId("graph-summary"))
+    .toHaveText("2025-03-15 · Top 1 transaction i · 2 addresses · 1 edges", { useInnerText: true });
+  const tip = page.getByTestId("ranking-info-tip");
+  const icon = page.getByTestId("ranking-info");
+  await expect(tip).toBeHidden();
+
+  await icon.hover();
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText("How the top 100 are picked");
+  await expect(tip).toContainText("Coinbase (mining reward) transactions are excluded.");
+  for (const theme of ["light", "dark"]) {
+    if (theme === "dark") {
+      await page.getByRole("button", { name: "Switch to dark theme" }).click();
+      await icon.hover();
+    }
+    const box = (await tip.boundingBox())!;
+    const vp = page.viewportSize()!;
+    expect(box.x).toBeGreaterThanOrEqual(0); // not clipped at either side
+    expect(box.x + box.width).toBeLessThanOrEqual(vp.width);
+    const colours = await tip.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]);
+    expect(colours[0]).not.toBe(colours[1]);
+    await page.screenshot({ path: `${SHOTS}/ranking-info-${theme}.png` });
+  }
+
+  await page.mouse.move(5, 500); // away: hidden again
+  await expect(tip).toBeHidden();
+  await icon.focus(); // keyboard
+  await expect(tip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+  await icon.click(); // tap/click pins it open
+  await page.mouse.move(5, 500);
+  await expect(tip).toBeVisible();
+  await page.mouse.click(5, 500); // a tap elsewhere closes it
+  await expect(tip).toBeHidden();
+
+  await page.getByRole("button", { name: "Past week", exact: true }).click();
+  await expect(page.getByTestId("graph-summary")).toContainText("2025-03-09 to 2025-03-15 · Top 2 transactions");
 });
