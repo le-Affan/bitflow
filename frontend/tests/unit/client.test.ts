@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, createApiClient, isCheckedEmptyDay, isEmptyState, toApiError } from "../../src/api/client";
+import { ApiError, createApiClient, isCheckedEmptyDay, isEmptyState, scopeLabel, toApiError } from "../../src/api/client";
 
 // fetch is mocked in every test; all dates, addresses and counts below are synthetic.
 function json(status: number, body: unknown): Response {
@@ -24,6 +24,22 @@ describe("API client", () => {
       "http://api.test:8000/api/edges?day=2026-10-09&source=a+b&target=c%26d",
       "http://api.test:8000/api/addresses/bc1q%2Fx?day=2026-10-09",
     ]);
+  });
+
+  it("sends a range as start and end", async () => {
+    const fetchMock = vi.fn(async () => json(200, {}));
+    const client = createApiClient("", fetchMock);
+    const range = { start: "2001-02-01", end: "2001-02-28" };
+    await client.graph(range);
+    await client.edge(range, "fx-a", "fx-b");
+    await client.transaction(range, "ab");
+    expect(fetchMock.mock.calls.map((c) => (c as unknown[])[0])).toEqual([
+      "/api/graph?start=2001-02-01&end=2001-02-28",
+      "/api/edges?start=2001-02-01&end=2001-02-28&source=fx-a&target=fx-b",
+      "/api/transactions/ab?start=2001-02-01&end=2001-02-28",
+    ]);
+    expect(scopeLabel(range)).toBe("2001-02-01 to 2001-02-28");
+    expect(scopeLabel("2001-02-01")).toBe("2001-02-01");
   });
 
   it("returns parsed JSON on success", async () => {

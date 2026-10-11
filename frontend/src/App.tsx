@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, api, isCheckedEmptyDay, isEmptyState } from "./api/client";
+import { ApiError, api, isCheckedEmptyDay, isEmptyState, scopeLabel } from "./api/client";
+import type { Scope } from "./api/types";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { GraphView, prefersReducedMotion, type GraphSelection, type RenderedCounts } from "./components/GraphView";
 import { EdgePanel, NodePanel } from "./components/Panels";
@@ -65,8 +66,8 @@ function NothingIngested() {
   return <EmptyState title="No data yet"><p>{EMPTY_TEXT}</p></EmptyState>;
 }
 
-function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary | null) => void; theme: Theme }) {
-  const graph = useAsync((signal) => api.graph(day, signal), [day]);
+function GraphArea({ scope, onSummary, theme }: { scope: Scope; onSummary: (s: Summary | null) => void; theme: Theme }) {
+  const graph = useAsync((signal) => api.graph(scope, signal), [scopeLabel(scope)]);
   const [selection, setSelection] = useState<GraphSelection>(null);
   const [counts, setCounts] = useState<RenderedCounts | null>(null);
   // The panel slot stays mounted and animates its width. While it closes, the last selection keeps being shown
@@ -92,11 +93,11 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
   const panel = useMemo(() => {
     if (!shown || !data) return null;
     return shown.kind === "node" ? (
-      <NodePanel day={data.day} address={shown.address} onClose={closePanel} />
+      <NodePanel scope={scope} address={shown.address} onClose={closePanel} />
     ) : (
-      <EdgePanel day={data.day} source={shown.source} target={shown.target} onClose={closePanel} />
+      <EdgePanel scope={scope} source={shown.source} target={shown.target} onClose={closePanel} />
     );
-  }, [shown, data, closePanel]);
+  }, [shown, data, scope, closePanel]);
 
   if (graph.status === "loading") return <Loading label="Loading graph…" />;
   if (graph.status === "error") {
@@ -105,8 +106,11 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
     return <ErrorBox error={graph.error} onRetry={graph.reload} what="the graph" />;
   }
   if (isCheckedEmptyDay(graph.data))
-    return <EmptyDay testId="empty-day" title="0 eligible transactions on this day"
-                     detail="This day was checked: no transaction met the ranking rule, so the graph is empty." />;
+    return typeof scope === "string"
+      ? <EmptyDay testId="empty-day" title="0 eligible transactions on this day"
+                  detail="This day was checked: no transaction met the ranking rule, so the graph is empty." />
+      : <EmptyDay testId="empty-day" title="0 eligible transactions in this range"
+                  detail="Every day of this range was checked: no transaction met the ranking rule, so the graph is empty." />;
   return (
     <div className="workspace">
       <section className="graph-section">
@@ -129,7 +133,7 @@ function GraphArea({ day, onSummary, theme }: { day: Ymd; onSummary: (s: Summary
 
 export function App() {
   const days = useAsync(() => api.days(), []);
-  const [picked, setPicked] = useState<Ymd | null>(null);
+  const [picked, setPicked] = useState<Scope | null>(null); // a day or a range; null = latest stored day
   const [summary, setSummary] = useState<Summary | null>(null);
   const [theme, setTheme] = useState<Theme>(loadTheme);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
@@ -145,7 +149,9 @@ export function App() {
   const list = days.status === "success" ? days.data : [];
   const ingested = useMemo(() => new Set(list.map((d) => d.date)), [list]);
   const latest = list[0]?.date ?? null; // /api/days is newest first
-  const selected = picked ?? latest;
+  const selected: Scope | null = picked ?? latest;
+  const selectedDay = typeof selected === "string" ? selected : null; // shown in the day picker
+  const range = typeof selected === "string" ? null : selected;
 
   let content: React.ReactNode;
   if (days.status === "loading") content = <Loading label="Loading days…" />;
@@ -153,8 +159,8 @@ export function App() {
     content = isEmptyState(days.error) ? <NothingIngested />
       : <ErrorBox error={days.error} onRetry={days.reload} what="the list of days" />;
   else if (!selected) content = <NothingIngested />;
-  else if (isBeforeBitcoin(selected)) content = <BeforeBitcoin />;
-  else content = <GraphArea key={selected} day={selected} onSummary={onSummary} theme={theme} />;
+  else if (isBeforeBitcoin(range ? range.end : (selectedDay as Ymd))) content = <BeforeBitcoin />;
+  else content = <GraphArea key={scopeLabel(selected)} scope={selected} onSummary={onSummary} theme={theme} />;
 
   return (
     <div className="app">
@@ -162,7 +168,7 @@ export function App() {
         <h1 className="logo">BitFlow</h1>
         {summary && (
           <p className="graph-summary" data-testid="graph-summary">
-            <span data-testid="summary-day">{selected}</span>{" · "}
+            <span data-testid="summary-day">{selected && scopeLabel(selected)}</span>{" · "}
             {summary.transactions} transactions
             {summary.counts && (
               <>
@@ -179,8 +185,11 @@ export function App() {
         <ControlsPanel
           collapsed={controlsCollapsed}
           onToggleCollapsed={() => setControlsCollapsed((c) => !c)}
-          selected={selected}
+          selected={selectedDay}
           onSelect={setPicked}
+          range={range}
+          onSelectRange={setPicked}
+          latest={latest}
           today={today}
           ingestedDays={ingested}
           daysStatus={days.status === "error" && isEmptyState(days.error) ? "success" : days.status}

@@ -160,3 +160,74 @@ test("switching days quickly never shows the outdated graph", async ({ page }) =
   expect(await graphInfo(page)).toMatchObject({ nodes: 2, edges: 1 });
   expect(aborted).toContain("2025-03-14"); // the outdated request was cancelled, not only ignored
 });
+
+// Ranges. TEST FIXTURES: synthetic days and graphs (fxDays above: latest stored day 2025-03-15).
+const fxRangeGraph = (start: string, end: string) => ({
+  start, end, transaction_count: 2, nodes: [{ address: "fx-r1" }, { address: "fx-r2" }, { address: "fx-r3" }],
+  edges: [{ source: "fx-r1", target: "fx-r2", tx_count: 1 }, { source: "fx-r2", target: "fx-r3", tx_count: 1 }],
+});
+
+function rangeApi(path: string, url: URL): { status: number; body: unknown } {
+  const start = url.searchParams.get("start");
+  const end = url.searchParams.get("end");
+  if (path === "/api/graph" && start && end) {
+    if (start === "2025-04-01") return { status: 404, body: { detail: { code: "day_not_ingested", message: "No day from 2025-04-01 to 2025-04-02 has been ingested." } } };
+    if (start === "2025-03-01") return { status: 200, body: { start, end, transaction_count: 0, nodes: [], edges: [], status: "no_eligible_transactions" } };
+    return { status: 200, body: fxRangeGraph(start, end) };
+  }
+  return dayStatesApi(path, url);
+}
+
+test("preset ranges end on the latest stored day; the day picker switches back", async ({ page }) => {
+  const asked: string[] = [];
+  await mockApi(page, (path, url) => {
+    if (path === "/api/graph") asked.push(url.search);
+    return rangeApi(path, url);
+  });
+  await page.goto("/");
+  await waitForGraph(page);
+  for (const [name, start] of [["Past week", "2025-03-09"], ["Past month", "2025-02-14"], ["Past year", "2024-03-16"]]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(page.getByTestId("summary-day")).toHaveText(`${start} to 2025-03-15`);
+    await page.waitForFunction(() => window.__bitflowGraph?.nodeCount() === 3);
+    await expect(page.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(asked.at(-1)).toBe(`?start=${start}&end=2025-03-15`);
+  }
+  await expect(page.getByTestId("graph-summary")).toContainText("2 transactions");
+  await pickDate(page, "2025-03-14");
+  await expect(page.getByTestId("summary-day")).toHaveText("2025-03-14");
+  await page.waitForFunction(() => window.__bitflowGraph?.edgeCount() === 3);
+});
+
+test("custom range: order check, pre-2009 start clamped, empty and no-data ranges", async ({ page }) => {
+  const asked: string[] = [];
+  await mockApi(page, (path, url) => {
+    if (path === "/api/graph") asked.push(url.search);
+    return rangeApi(path, url);
+  });
+  await page.goto("/");
+  await waitForGraph(page);
+  const apply = page.getByRole("button", { name: "Apply", exact: true });
+
+  await pickDate(page, "2025-03-10", "range-from");
+  await pickDate(page, "2025-03-05", "range-to");
+  await apply.click();
+  await expect(page.getByTestId("range-error")).toHaveText("From must not be after To.");
+
+  await pickDate(page, "2008-06-01", "range-from");
+  await apply.click();
+  await expect(page.getByTestId("summary-day")).toHaveText("2009-01-03 to 2025-03-05");
+  await expect(page.getByTestId("range-error")).toHaveCount(0);
+  expect(asked.at(-1)).toBe("?start=2009-01-03&end=2025-03-05");
+
+  await pickDate(page, "2025-03-01", "range-from");
+  await pickDate(page, "2025-03-02", "range-to");
+  await apply.click();
+  await expect(page.getByTestId("empty-day")).toContainText("0 eligible transactions in this range");
+
+  await pickDate(page, "2025-04-01", "range-from");
+  await pickDate(page, "2025-04-02", "range-to");
+  await apply.click();
+  await expect(page.getByTestId("no-data")).toHaveText("No data available");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});

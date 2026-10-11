@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { api, scopeLabel } from "../api/client";
+import type { Scope } from "../api/types";
 import { useAsync } from "../hooks/useAsync";
 import { formatBtc } from "../lib/btc";
 import { shorten } from "../lib/shorten";
@@ -35,9 +36,9 @@ function PanelShell(props: {
   );
 }
 
-export function NodePanel(props: { day: string; address: string; onClose: () => void }) {
-  const { day, address, onClose } = props;
-  const s = useAsync(() => api.address(day, address), [day, address]);
+export function NodePanel(props: { scope: Scope; address: string; onClose: () => void }) {
+  const { scope, address, onClose } = props;
+  const s = useAsync(() => api.address(scope, address), [scopeLabel(scope), address]);
   return (
     <PanelShell title="Address" onClose={onClose} contentKey={`node:${address}`}>
       <FullValue value={address} />
@@ -69,16 +70,17 @@ function Chevron() {
   );
 }
 
-export function EdgePanel(props: { day: string; source: string; target: string; onClose: () => void }) {
-  const { day, source, target, onClose } = props;
+export function EdgePanel(props: { scope: Scope; source: string; target: string; onClose: () => void }) {
+  const { scope, source, target, onClose } = props;
+  const key = scopeLabel(scope);
   const [txid, setTxid] = useState<string | null>(null);
-  const s = useAsync(() => api.edge(day, source, target), [day, source, target]);
-  useEffect(() => setTxid(null), [day, source, target]); // a different edge starts at its list
+  const s = useAsync(() => api.edge(scope, source, target), [key, source, target]);
+  useEffect(() => setTxid(null), [key, source, target]); // a different edge starts at its list
 
   if (txid) {
     return (
       <PanelShell title="Transaction" onBack={() => setTxid(null)} onClose={onClose} contentKey={`tx:${txid}`}>
-        <TransactionDetails day={day} txid={txid} />
+        <TransactionDetails scope={scope} txid={txid} />
       </PanelShell>
     );
   }
@@ -137,8 +139,8 @@ function PartList({ title, parts }: { title: string; parts: { position: number; 
   );
 }
 
-export function TransactionDetails({ day, txid }: { day: string; txid: string }) {
-  const s = useAsync(() => api.transaction(day, txid), [day, txid]);
+export function TransactionDetails({ scope, txid }: { scope: Scope; txid: string }) {
+  const s = useAsync(() => api.transaction(scope, txid), [scopeLabel(scope), txid]);
   return (
     <div data-testid="tx-details">
       <FullValue value={txid} />

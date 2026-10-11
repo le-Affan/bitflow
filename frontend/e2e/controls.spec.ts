@@ -170,30 +170,6 @@ test("tomorrow (UTC) is disabled and cannot be selected by click, keyboard or ty
   await expect(from.locator(`button[data-date="${tomorrow}"]:enabled`)).toHaveCount(0);
 });
 
-test("range buttons and Apply show a temporary 'coming soon' bubble and change nothing", async ({ page, request }) => {
-  const hasData = (await ingestedDays(request)).length > 0;
-  await page.goto("/");
-  await waitForDays(page);
-  if (hasData) await waitForGraph(page);
-  const dateBefore = await pickerButton(page).getAttribute("data-value");
-  const nodesBefore = hasData ? (await graphInfo(page)).nodes : null;
-
-  for (const name of ["Past week", "Past month", "Past year", "Apply"]) {
-    await page.getByRole("button", { name, exact: true }).click();
-    const bubble = page.getByRole("status").filter({ hasText: "Date range selection coming soon" });
-    await expect(bubble).toBeVisible();
-    if (name === "Past week") await page.screenshot({ path: `${SHOTS}/coming-soon.png` });
-    await expect(bubble).toBeHidden({ timeout: 5_000 }); // disappears by itself after ~3 s
-    await expect(pickerButton(page)).toHaveAttribute("data-value", dateBefore ?? "");
-    if (hasData) expect((await graphInfo(page)).nodes).toBe(nodesBefore);
-  }
-
-  // Dismissable before the timeout.
-  await page.getByRole("button", { name: "Past month", exact: true }).click();
-  await page.getByRole("button", { name: "Dismiss message" }).click();
-  await expect(page.getByTestId("coming-soon")).toHaveCount(0);
-});
-
 test("detail panels still open on the right with the controls panel present; the graph resizes", async ({ page, request }) => {
   await requireGraph(request);
   await page.goto("/");

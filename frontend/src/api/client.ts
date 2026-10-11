@@ -1,4 +1,4 @@
-import type { AddressSummary, Day, EdgeDetail, Graph, TransactionDetail } from "./types";
+import type { AddressSummary, Day, EdgeDetail, Graph, Scope, TransactionDetail } from "./types";
 
 /** Error from the backend API or the network, normalized to one shape. */
 export class ApiError extends Error {
@@ -22,6 +22,16 @@ export function isEmptyState(error: unknown): boolean {
 /** A day that was checked and had 0 eligible transactions (200 with an empty graph), as opposed to a stored day. */
 export function isCheckedEmptyDay(graph: Graph): boolean {
   return graph.status === NO_ELIGIBLE_TRANSACTIONS;
+}
+
+/** Query parameters for a scope: ?day= for one day, ?start=&end= for a range. */
+export function scopeParams(scope: Scope): { day?: string; start?: string; end?: string } {
+  return typeof scope === "string" ? { day: scope } : { start: scope.start, end: scope.end };
+}
+
+/** "2026-10-09" or "2026-09-10 to 2026-10-09". Also usable as a stable key. */
+export function scopeLabel(scope: Scope): string {
+  return typeof scope === "string" ? scope : `${scope.start} to ${scope.end}`;
 }
 
 type Fetch = typeof fetch;
@@ -75,10 +85,14 @@ export function createApiClient(baseUrl: string, fetchImpl: Fetch = (...args) =>
   const enc = encodeURIComponent;
   return {
     days: () => get<Day[]>("/api/days"),
-    graph: (day?: string, signal?: AbortSignal) => get<Graph>("/api/graph", { day }, signal),
-    address: (day: string, address: string) => get<AddressSummary>(`/api/addresses/${enc(address)}`, { day }),
-    edge: (day: string, source: string, target: string) => get<EdgeDetail>("/api/edges", { day, source, target }),
-    transaction: (day: string, txid: string) => get<TransactionDetail>(`/api/transactions/${enc(txid)}`, { day }),
+    graph: (scope?: Scope, signal?: AbortSignal) =>
+      get<Graph>("/api/graph", scope === undefined ? {} : scopeParams(scope), signal),
+    address: (scope: Scope, address: string) =>
+      get<AddressSummary>(`/api/addresses/${enc(address)}`, scopeParams(scope)),
+    edge: (scope: Scope, source: string, target: string) =>
+      get<EdgeDetail>("/api/edges", { ...scopeParams(scope), source, target }),
+    transaction: (scope: Scope, txid: string) =>
+      get<TransactionDetail>(`/api/transactions/${enc(txid)}`, scopeParams(scope)),
   };
 }
 

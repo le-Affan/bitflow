@@ -193,7 +193,7 @@ const LEAF_GAP = 16; // spacing between leaves on a ring and between rings
 
 /** Finished layouts per day, in memory, so returning to a day already viewed is instant. */
 const layoutCache = new Map<string, Map<string, cytoscape.Position>>();
-const layoutKey = (g: Graph) => `${g.day}|${g.nodes.length}|${g.edges.length}`;
+const layoutKey = (g: Graph) => `${g.day ?? `${g.start}..${g.end}`}|${g.nodes.length}|${g.edges.length}`;
 
 function coseOptions(large: boolean, forcedNodes: number): cytoscape.LayoutOptions {
   // cose stops when its temperature cools down; a lower cooling factor means fewer iterations. Small graphs keep

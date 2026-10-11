@@ -16,8 +16,13 @@ export interface GraphEdge {
   tx_count: number;
 }
 
+/** What a graph shows: one UTC day ("YYYY-MM-DD") or a range of days (both inclusive). */
+export type Scope = string | { start: string; end: string };
+
 export interface Graph {
-  day: string;
+  day?: string; // single day
+  start?: string; // range
+  end?: string;
   transaction_count: number;
   nodes: GraphNode[];
   edges: GraphEdge[];
