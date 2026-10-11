@@ -1,7 +1,7 @@
 import { apiJson, expect, ingestedDays, test } from "./fixtures";
 import {
   allNodesInView, graphInfo, hubId, openCalendarAt, pickDate, pickerButton, pointOf, SHOTS, utcToday, waitForDays,
-  waitForGraph,
+  waitForGraph, waitForViewportIdle,
 } from "./helpers";
 
 // Controls panel, calendar, range placeholders and wheel zoom. Runs against the real stack; every date and
@@ -57,14 +57,19 @@ test("wheel zoom: one notch changes zoom by ~20 %, centred on the mouse; buttons
   }
 
   const z = (await graphInfo(page)).zoom;
+  // The buttons animate the viewport: read it once the animation has finished.
   await page.getByRole("button", { name: "Zoom in" }).click();
+  await waitForViewportIdle(page);
   expect((await graphInfo(page)).zoom).toBeGreaterThan(z);
   await page.getByRole("button", { name: "Zoom out" }).click();
   await page.getByRole("button", { name: "Zoom out" }).click();
+  await waitForViewportIdle(page);
   expect((await graphInfo(page)).zoom).toBeLessThan(z);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -100);
+  await waitForViewportIdle(page);
   expect(await allNodesInView(page)).toBe(false);
   await page.getByRole("button", { name: "Reset view" }).click();
+  await waitForViewportIdle(page);
   expect(await allNodesInView(page)).toBe(true);
 });
 

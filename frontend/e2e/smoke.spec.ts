@@ -1,5 +1,5 @@
 import { expect, ingestedDays, test } from "./fixtures";
-import { allNodesInView, graphInfo, hubId, pickDate, pointOf, SHOTS, waitForGraph } from "./helpers";
+import { allNodesInView, graphInfo, hubId, pickDate, pointOf, SHOTS, waitForGraph, waitForViewportIdle } from "./helpers";
 
 // Smoke tests against the real running stack. They use whatever days are ingested and assert no specific
 // values; with no day ingested they skip.
@@ -57,11 +57,14 @@ test("graph, node panel, edge panel, transaction details, zoom, day selector", a
 
   // Zoom with buttons and wheel, pan, reset.
   const z0 = (await graphInfo(page)).zoom;
+  // The buttons animate the viewport: read it once the animation has finished.
   await page.getByRole("button", { name: "Zoom in" }).click();
+  await waitForViewportIdle(page);
   expect((await graphInfo(page)).zoom).toBeGreaterThan(z0);
   const box = (await page.getByTestId("graph-canvas").boundingBox())!;
   await page.mouse.move(box.x + box.width / 3, box.y + box.height / 3);
   await page.mouse.wheel(0, 400);
+  await waitForViewportIdle(page);
   const pan0 = await page.evaluate(() => window.__bitflowGraph!.pan());
   await page.mouse.move(box.x + 20, box.y + box.height - 20);
   await page.mouse.down();
@@ -71,6 +74,7 @@ test("graph, node panel, edge panel, transaction details, zoom, day selector", a
   expect(pan1.x).not.toBe(pan0.x);
   expect(await allNodesInView(page)).toBe(false); // zoomed in: part of the graph is off-screen
   await page.getByRole("button", { name: "Reset view" }).click();
+  await waitForViewportIdle(page);
   expect(await allNodesInView(page)).toBe(true);
 
   // Day selection (calendar in the controls panel): pick up to 5 ingested days spread over the list (it can hold

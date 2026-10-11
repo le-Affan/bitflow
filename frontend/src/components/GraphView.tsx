@@ -47,6 +47,8 @@ export interface GraphInspector {
   renderedEdgePoint: (id: string, t: number) => { x: number; y: number } | null;
   zoom: () => number;
   pan: () => { x: number; y: number };
+  /** False while a zoom/pan animation (buttons, reset) runs or a wheel zoom step is still pending. */
+  viewportIdle: () => boolean;
   /** Fires the same tap event a click would, for elements buried under others. */
   tap: (id: string) => boolean;
   renderedAt: number;
@@ -333,6 +335,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
   const themeRef = useRef<Theme>(theme);
   themeRef.current = theme;
   const largeRef = useRef(false);
+  const viewportAnimRef = useRef(0); // id of the running viewport animation, 0 when none
   const [layingOut, setLayingOut] = useState(() => !layoutCache.has(layoutKey(graph)));
 
   // (Re)build the graph whenever the data changes. A layout that isn't cached runs after the browser has painted
@@ -654,6 +657,7 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
       },
       zoom: () => cy.zoom(),
       pan: () => cy.pan(),
+      viewportIdle: () => viewportAnimRef.current === 0 && wheelFrame === 0,
       tap: (id) => {
         const el = cy.getElementById(id);
         if (el.empty()) return false;
@@ -720,11 +724,17 @@ export function GraphView({ graph, selection, onNodeClick, onEdgeClick, onBackgr
     if (!cy) return;
     cy.stop(true);
     if (prefersReducedMotion()) {
+      viewportAnimRef.current = 0;
       if (target.fit) cy.fit(undefined, 24);
       else cy.viewport({ zoom: target.zoom as number, pan: target.pan as cytoscape.Position });
       return;
     }
-    cy.animate({ ...target, duration: 260, easing: "ease-in-out-cubic" });
+    const id = viewportAnimRef.current + 1; // a newer animation replaces (stops) the previous one
+    viewportAnimRef.current = id;
+    cy.animate({
+      ...target, duration: 260, easing: "ease-in-out-cubic",
+      complete: () => { if (viewportAnimRef.current === id) viewportAnimRef.current = 0; },
+    });
   };
   const zoomBy = (factor: number) => {
     const cy = cyRef.current;

@@ -7,6 +7,11 @@ export async function waitForGraph(page: Page) {
   await page.waitForFunction(() => !!window.__bitflowGraph && window.__bitflowGraph.nodeCount() > 0);
 }
 
+/** Waits until no zoom/pan animation runs and no wheel zoom step is pending (signal from the app). */
+export async function waitForViewportIdle(page: Page) {
+  await page.waitForFunction(() => window.__bitflowGraph?.viewportIdle() === true);
+}
+
 export async function graphInfo(page: Page) {
   return page.evaluate(() => {
     const g = window.__bitflowGraph!;
