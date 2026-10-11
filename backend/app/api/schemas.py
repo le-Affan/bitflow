@@ -7,6 +7,12 @@ ADDRESS_SCOPE = (
     "These numbers cover only the stored transactions of this day (the displayed view), "
     "not the address's full history."
 )
+RANGE_ADDRESS_SCOPE = (
+    "These numbers cover only the top 100 transactions of the selected range (the displayed view), "
+    "not the address's full history."
+)
+
+# Single-day responses carry `day`; range responses carry `start` and `end` instead (None fields are omitted).
 
 
 class DayOut(BaseModel):
@@ -26,7 +32,9 @@ class EdgeOut(BaseModel):
 
 
 class GraphOut(BaseModel):
-    day: date
+    day: date | None = None
+    start: date | None = None
+    end: date | None = None
     transaction_count: int
     nodes: list[NodeOut]
     edges: list[EdgeOut]
@@ -36,7 +44,9 @@ class GraphOut(BaseModel):
 
 
 class AddressOut(BaseModel):
-    day: date
+    day: date | None = None
+    start: date | None = None
+    end: date | None = None
     address: str
     transaction_count: int
     spent_sat: int
@@ -52,7 +62,9 @@ class EdgeTransactionOut(BaseModel):
 
 
 class EdgeDetailOut(BaseModel):
-    day: date
+    day: date | None = None
+    start: date | None = None
+    end: date | None = None
     source: str
     target: str
     transactions: list[EdgeTransactionOut]
@@ -71,7 +83,9 @@ class TxOutputOut(BaseModel):
 
 
 class TransactionOut(BaseModel):
-    day: date
+    day: date | None = None
+    start: date | None = None
+    end: date | None = None
     txid: str
     block_height: int
     block_time: datetime

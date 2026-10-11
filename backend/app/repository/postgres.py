@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Iterable, Sequence
 
-from sqlalchemy import Engine, create_engine, delete, exists, insert, select
+from sqlalchemy import Engine, create_engine, delete, exists, func, insert, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.domain.models import DayStatus, IngestedDay, Transaction, TxInput, TxOutput
@@ -72,36 +72,41 @@ class PostgresDayRepository:
 
     def get_day_transactions(self, day: date) -> list[Transaction]:
         with self._engine.connect() as conn:
-            tx_rows = conn.execute(
-                select(transactions)
-                .where(transactions.c.day == day)
-                .order_by(transactions.c.block_height, transactions.c.txid)
-            ).all()
-            in_rows = conn.execute(
-                select(tx_inputs).where(tx_inputs.c.day == day).order_by(tx_inputs.c.txid, tx_inputs.c.position)
-            ).all()
-            out_rows = conn.execute(
-                select(tx_outputs).where(tx_outputs.c.day == day).order_by(tx_outputs.c.txid, tx_outputs.c.position)
-            ).all()
-
-        inputs: dict[str, list[TxInput]] = defaultdict(list)
-        for r in in_rows:
-            inputs[r.txid].append(TxInput(position=r.position, address=r.address, value_sat=r.value_sat))
-        outputs: dict[str, list[TxOutput]] = defaultdict(list)
-        for r in out_rows:
-            outputs[r.txid].append(TxOutput(position=r.position, address=r.address, value_sat=r.value_sat))
-
-        return [
-            Transaction(
-                txid=r.txid,
-                block_height=r.block_height,
-                block_time=r.block_time,
-                inputs=tuple(inputs[r.txid]),
-                outputs=tuple(outputs[r.txid]),
+            return _load_transactions(
+                conn,
+                transactions.c.day == day,
+                tx_inputs.c.day == day,
+                tx_outputs.c.day == day,
             )
-            for r in tx_rows
-        ]
 
+    def get_range_transactions(self, start: date, end: date, limit: int) -> list[Transaction]:
+        o, i = tx_outputs.alias("o"), tx_inputs.alias("i")
+        # The range filter is repeated inside the anti-join so it only hashes the inputs of the range.
+        change = (
+            select(i.c.txid)
+            .where(i.c.day.between(start, end), i.c.day == o.c.day, i.c.txid == o.c.txid, i.c.address == o.c.address)
+            .exists()
+        )
+        value = func.max(o.c.value_sat).label("value")
+        # Grouped by txid alone (a txid is never stored on two days): grouping by (day, txid) makes Postgres pick a
+        # much slower merge anti-join.
+        top = (
+            select(func.min(o.c.day).label("day"), o.c.txid, value)
+            .where(o.c.day.between(start, end), ~change)
+            .group_by(o.c.txid)
+            .order_by(value.desc(), o.c.txid)
+            .limit(limit)
+        )
+        with self._engine.connect() as conn:
+            keys = [(r.day, r.txid) for r in conn.execute(top)]
+            if not keys:
+                return []
+            return _load_transactions(
+                conn,
+                tuple_(transactions.c.day, transactions.c.txid).in_(keys),
+                tuple_(tx_inputs.c.day, tx_inputs.c.txid).in_(keys),
+                tuple_(tx_outputs.c.day, tx_outputs.c.txid).in_(keys),
+            )
 
     def record_empty_days(self, days: Iterable[date]) -> int:
         days = sorted(set(days))
@@ -127,6 +132,36 @@ class PostgresDayRepository:
     def list_empty_days(self) -> list[date]:
         with self._engine.connect() as conn:
             return list(conn.execute(select(checked_empty_days.c.day).order_by(checked_empty_days.c.day)).scalars())
+
+
+def _load_transactions(conn, tx_where, in_where, out_where) -> list[Transaction]:
+    """Transactions matching `tx_where` with their inputs and outputs, by block height then txid."""
+    tx_rows = conn.execute(
+        select(transactions).where(tx_where).order_by(transactions.c.block_height, transactions.c.txid)
+    ).all()
+    in_rows = conn.execute(select(tx_inputs).where(in_where).order_by(tx_inputs.c.txid, tx_inputs.c.position)).all()
+    out_rows = conn.execute(
+        select(tx_outputs).where(out_where).order_by(tx_outputs.c.txid, tx_outputs.c.position)
+    ).all()
+
+    # A txid is never stored on two days, so grouping by txid is safe.
+    inputs: dict[str, list[TxInput]] = defaultdict(list)
+    for r in in_rows:
+        inputs[r.txid].append(TxInput(position=r.position, address=r.address, value_sat=r.value_sat))
+    outputs: dict[str, list[TxOutput]] = defaultdict(list)
+    for r in out_rows:
+        outputs[r.txid].append(TxOutput(position=r.position, address=r.address, value_sat=r.value_sat))
+
+    return [
+        Transaction(
+            txid=r.txid,
+            block_height=r.block_height,
+            block_time=r.block_time,
+            inputs=tuple(inputs[r.txid]),
+            outputs=tuple(outputs[r.txid]),
+        )
+        for r in tx_rows
+    ]
 
 
 def _to_day(row) -> IngestedDay:

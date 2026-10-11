@@ -27,6 +27,16 @@ class DayRepository(Protocol):
         """Stored transactions of `day` with their inputs and outputs. Empty if `day` is not ingested."""
         ...
 
+    def get_range_transactions(self, start: date, end: date, limit: int) -> list[Transaction]:
+        """The top `limit` stored transactions of all ingested days from `start` to `end` (inclusive), with their
+        inputs and outputs, in the order of `get_day_transactions` (block height, txid).
+
+        Ranked like a single day: ranking value = largest stored output whose address is not one of the
+        transaction's own input addresses; higher first, ties by txid ascending. A transaction without such an
+        output is not ranked. Days without stored data contribute nothing.
+        """
+        ...
+
     def record_empty_days(self, days: Iterable[date]) -> int:
         """Record days that were checked and had 0 eligible transactions. Days already recorded or already
         ingested are left alone (never duplicated). Returns how many days were newly recorded."""
