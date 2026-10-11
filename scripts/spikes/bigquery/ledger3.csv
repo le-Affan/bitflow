@@ -1,0 +1,4 @@
+file,bytes_processed bytes_billed cache_hit,job
+12_rank_summary.sql,7143678 10485760 False,bqjob_r64342a336577a56a_000001a1280dace5_1
+12_rank_summary.sql,12245947 12582912 False,bqjob_r147a3ec0f3131042_000001a1280dce67_1
+12_rank_summary.sql,92278837 93323264 False,bqjob_r5edcaf2ced5e578a_000001a1280df306_1
