@@ -10,16 +10,18 @@ interface Props {
   value: Ymd | null;
   onChange: (value: Ymd) => void;
   today: Ymd; // UTC; nothing after it can be selected
-  markedDays?: ReadonlySet<Ymd>; // days with ingested data
+  min?: Ymd; // nothing before it can be selected (e.g. "To" never before "From")
+  disabled?: boolean;
   placeholder?: string;
   testId?: string;
   compact?: boolean;
 }
 
-/** Dropdown button with a calendar popover. Future days (after `today`, UTC) are disabled. */
-export function DatePicker({ label, value, onChange, today, markedDays, placeholder = "Select a date", testId, compact }: Props) {
+/** Dropdown button with a calendar popover. Days after `today` (UTC) and before `min` are disabled. */
+export function DatePicker({ label, value, onChange, today, min, disabled, placeholder = "Select a date", testId, compact }: Props) {
+  const allowed = (day: Ymd) => isSelectable(day, today) && (!min || day >= min);
   const [open, setOpen] = useState(false);
-  const [focused, setFocused] = useState<Ymd>(value && isSelectable(value, today) ? value : today);
+  const [focused, setFocused] = useState<Ymd>(value && allowed(value) ? value : today);
   const [view, setView] = useState<YearMonth>(yearMonthOf(focused));
   const [yearText, setYearText] = useState(String(view.year));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -29,9 +31,9 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
   const popId = useId();
   const max = yearMonthOf(today);
 
-  // Opening resets the view to the selected day (or today).
+  // Opening resets the view to the selected day (or the earliest allowed day, or today).
   const openPicker = () => {
-    const start = value && isSelectable(value, today) ? value : today;
+    const start = value && allowed(value) ? value : (min ?? today);
     setFocused(start);
     setView(yearMonthOf(start));
     setYearText(String(yearMonthOf(start).year));
@@ -42,6 +44,10 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
     setOpen(false);
     if (returnFocus) buttonRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,14 +66,17 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
   }, [open, focused, view]);
 
   const showMonth = (ym: YearMonth) => {
-    const target = clampYearMonth(ym, today);
+    let target = clampYearMonth(ym, today);
+    if (min && compareYearMonth(target, yearMonthOf(min)) < 0) target = yearMonthOf(min);
     setView(target);
     setYearText(String(target.year));
-    setFocused(moveToMonth(focused, target, today));
+    const day = moveToMonth(focused, target, today);
+    setFocused(min && day < min ? min : day);
   };
 
   const focusDay = (day: Ymd) => {
-    const next = day > today ? today : day; // never move focus onto a future day
+    let next = day > today ? today : day; // never move focus onto a future day
+    if (min && next < min) next = min; // nor before the earliest allowed day
     if (next < "0001-01-01") return;
     setFocused(next);
     setView(yearMonthOf(next));
@@ -76,7 +85,7 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
   };
 
   const select = (day: Ymd) => {
-    if (!isSelectable(day, today)) return; // future or invalid: ignored by every route
+    if (!allowed(day)) return; // future, before `min` or invalid: ignored by every route
     onChange(day);
     close();
   };
@@ -124,6 +133,7 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
         aria-controls={open ? popId : undefined}
         aria-label={`${label}: ${value ? longLabel(value) : placeholder}`}
         data-value={value ?? ""}
+        disabled={disabled}
         onClick={() => (open ? close() : openPicker())}
       >
         <span>{value ?? placeholder}</span>
@@ -144,14 +154,14 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
         >
           <div className="calendar-nav">
             <button type="button" aria-label="Previous month" onClick={() => showMonth(addMonths(view, -1))}
-                    disabled={view.year === 1 && view.month === 1}>‹</button>
+                    disabled={(view.year === 1 && view.month === 1) || (!!min && compareYearMonth(view, yearMonthOf(min)) <= 0)}>‹</button>
             <select aria-label="Month" value={view.month}
                     onChange={(e) => showMonth({ year: view.year, month: Number(e.target.value) })}>
               {MONTH_NAMES.map((name, i) => (
                 <option key={name} value={i + 1} disabled={view.year === max.year && i + 1 > max.month}>{name}</option>
               ))}
             </select>
-            <input aria-label="Year" type="number" inputMode="numeric" min={1} max={max.year} value={yearText}
+            <input aria-label="Year" type="number" inputMode="numeric" min={min ? yearMonthOf(min).year : 1} max={max.year} value={yearText}
                    onChange={(e) => setYearText(e.target.value)} onBlur={onYearCommit}
                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onYearCommit(); } }} />
             <button type="button" aria-label="Next month" onClick={() => showMonth(addMonths(view, 1))} disabled={atMax}>›</button>
@@ -167,18 +177,19 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
                   {week.map((day, di) => {
                     if (!day) return <td key={di} />;
                     const future = day > today;
-                    const marked = markedDays?.has(day) ?? false;
-                    const label = `${longLabel(day)}${marked ? ", has data" : ""}${future ? ", not selectable (future)" : ""}`;
+                    const early = !!min && day < min;
+                    const off = future || early;
+                    const label = `${longLabel(day)}${future ? ", not selectable (future)" : early ? `, not selectable (before ${min})` : ""}`;
                     return (
                       <td key={di} role="gridcell" aria-selected={day === value}>
                         <button
                           type="button"
                           data-date={day}
-                          className={["day", marked && "marked", day === value && "selected", day === today && "today"]
+                          className={["day", day === value && "selected", day === today && "today"]
                             .filter(Boolean).join(" ")}
                           tabIndex={day === focused ? 0 : -1}
-                          disabled={future}
-                          aria-disabled={future}
+                          disabled={off}
+                          aria-disabled={off}
                           aria-label={label}
                           onClick={() => select(day)}
                           onFocus={() => setFocused(day)}
@@ -193,7 +204,6 @@ export function DatePicker({ label, value, onChange, today, markedDays, placehol
             </tbody>
           </table>
           <div className="calendar-footer">
-            {markedDays && <span className="legend"><span className="dot" aria-hidden="true" /> day with data</span>}
             <button type="button" className="link" onClick={() => select(today)}>Today (UTC)</button>
           </div>
         </div>

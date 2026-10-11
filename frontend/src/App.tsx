@@ -147,7 +147,6 @@ export function App() {
   const today = todayUtc();
 
   const list = days.status === "success" ? days.data : [];
-  const ingested = useMemo(() => new Set(list.map((d) => d.date)), [list]);
   const latest = list[0]?.date ?? null; // /api/days is newest first
   const selected: Scope | null = picked ?? latest;
   const selectedDay = typeof selected === "string" ? selected : null; // shown in the day picker
@@ -191,7 +190,6 @@ export function App() {
           onSelectRange={setPicked}
           latest={latest}
           today={today}
-          ingestedDays={ingested}
           daysStatus={days.status === "error" && isEmptyState(days.error) ? "success" : days.status}
         />
         <main className="main">{content}</main>

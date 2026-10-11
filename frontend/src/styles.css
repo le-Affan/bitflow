@@ -119,7 +119,6 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .custom-range { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; align-items: center; margin-bottom: 8px; }
 .field-label { font-size: 0.85rem; color: var(--muted); }
 .range-button[aria-pressed="true"]:not(.primary) { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-.field-error { color: var(--danger); margin: 0 0 8px; }
 
 /* Date picker */
 .date-picker { position: relative; }
@@ -150,13 +149,7 @@ button.primary:active:not(:disabled) { background: var(--accent-hover); }
 .day.today { border-color: var(--accent-ring); }
 .day.selected, .day.selected:hover:not(:disabled) { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .day:disabled { color: var(--faint); opacity: 1; background: transparent; }
-.day.marked::after, .legend .dot {
-  content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
-}
-.day.marked::after { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); }
-.day.selected.marked::after { background: var(--accent-contrast); }
-.calendar-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 0.8rem; }
-.legend { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.calendar-footer { display: flex; justify-content: flex-end; align-items: center; margin-top: 6px; font-size: 0.8rem; }
 .calendar-footer .link { margin: 0; font-size: 0.8rem; }
 
 .status-nodata { color: var(--muted); font-size: 1.05rem; }

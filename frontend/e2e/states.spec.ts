@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
-import { API, graphInfo, pickDate, waitForGraph } from "./helpers";
+import { API, graphInfo, openCalendarAt, pickDate, pickerButton, waitForGraph } from "./helpers";
 
 // UI states with the API fully mocked by route interception. Never touches the real database.
 // TEST FIXTURES: every date, address and count below is synthetic, not real chain data. The dates are a
@@ -199,7 +199,7 @@ test("preset ranges end on the latest stored day; the day picker switches back",
   await page.waitForFunction(() => window.__bitflowGraph?.edgeCount() === 3);
 });
 
-test("custom range: order check, pre-2009 start clamped, empty and no-data ranges", async ({ page }) => {
+test("custom range: To waits for From and never goes before it; pre-2009 start clamped; empty and no-data ranges", async ({ page }) => {
   const asked: string[] = [];
   await mockApi(page, (path, url) => {
     if (path === "/api/graph") asked.push(url.search);
@@ -208,16 +208,31 @@ test("custom range: order check, pre-2009 start clamped, empty and no-data range
   await page.goto("/");
   await waitForGraph(page);
   const apply = page.getByRole("button", { name: "Apply", exact: true });
+  const toButton = pickerButton(page, "range-to");
+
+  await expect(toButton).toBeDisabled();
+  await expect(toButton).toHaveText(/Select a date/);
+  await expect(apply).toBeDisabled();
 
   await pickDate(page, "2025-03-10", "range-from");
-  await pickDate(page, "2025-03-05", "range-to");
-  await apply.click();
-  await expect(page.getByTestId("range-error")).toHaveText("From must not be after To.");
+  await expect(toButton).toBeEnabled();
+  await expect(apply).toBeDisabled();
+  const dialog = await openCalendarAt(page, "2025-03-10", "range-to");
+  await expect(dialog.locator('button[data-date="2025-03-09"]')).toBeDisabled(); // before From
+  await expect(dialog.locator('button[data-date="2025-03-10"]')).toBeEnabled();
+  await dialog.locator('button[data-date="2025-03-12"]').click();
+  await expect(apply).toBeEnabled();
+
+  // From moved after To: To is cleared, and Apply stays disabled until a new To is picked.
+  await pickDate(page, "2025-03-20", "range-from");
+  await expect(toButton).toHaveAttribute("data-value", "");
+  await expect(apply).toBeDisabled();
 
   await pickDate(page, "2008-06-01", "range-from");
+  await pickDate(page, "2025-03-05", "range-to");
   await apply.click();
   await expect(page.getByTestId("summary-day")).toHaveText("2009-01-03 to 2025-03-05");
-  await expect(page.getByTestId("range-error")).toHaveCount(0);
+  await expect(pickerButton(page, "range-from")).toHaveAttribute("data-value", "2009-01-03");
   expect(asked.at(-1)).toBe("?start=2009-01-03&end=2025-03-05");
 
   await pickDate(page, "2025-03-01", "range-from");

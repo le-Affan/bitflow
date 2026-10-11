@@ -95,8 +95,6 @@ test("selecting an ingested day in the calendar shows its graph", async ({ page,
   await page.goto("/");
   await waitForGraph(page);
   const dialog = await openCalendarAt(page, target);
-  await expect(dialog.locator(`button[data-date="${target}"]`)).toHaveClass(/marked/);
-  await expect(dialog.locator(`button[data-date="${target}"]`)).toHaveAttribute("aria-label", /has data/);
   // The popover is fully inside the controls panel (not clipped by its scroll container).
   const pop = (await dialog.boundingBox())!;
   const panelBox = (await page.getByTestId("controls-panel").boundingBox())!;

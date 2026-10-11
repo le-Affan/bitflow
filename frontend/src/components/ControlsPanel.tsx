@@ -20,12 +20,10 @@ export function presetRange(latest: Ymd, days: number): DayRange {
 }
 
 /**
- * Checks a custom From/To range. A start before the first Bitcoin block is moved to that day (unless the whole
- * range is before it, which the app then shows as such).
+ * The custom range to show (the pickers guarantee from <= to). A start before the first Bitcoin block is moved to
+ * that day (unless the whole range is before it, which the app then shows as such).
  */
-export function customRange(from: Ymd | null, to: Ymd | null): DayRange | { error: string } {
-  if (!from || !to) return { error: "Choose both From and To." };
-  if (from > to) return { error: "From must not be after To." };
+export function customRange(from: Ymd, to: Ymd): DayRange {
   if (from < FIRST_BITCOIN_DAY && to >= FIRST_BITCOIN_DAY) return { start: FIRST_BITCOIN_DAY, end: to };
   return { start: from, end: to };
 }
@@ -41,24 +39,22 @@ interface Props {
   onSelectRange: (range: DayRange) => void;
   latest: Ymd | null; // latest stored day; presets end on it
   today: Ymd;
-  ingestedDays: ReadonlySet<Ymd>;
   daysStatus: "loading" | "error" | "success";
 }
 
 export function ControlsPanel(props: Props) {
-  const { collapsed, onToggleCollapsed, selected, onSelect, range, onSelectRange, latest, today, ingestedDays,
-          daysStatus } = props;
+  const { collapsed, onToggleCollapsed, selected, onSelect, range, onSelectRange, latest, today, daysStatus } = props;
   const [from, setFrom] = useState<Ymd | null>(null);
   const [to, setTo] = useState<Ymd | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
+  // To is chosen after From and never before it: a From after the current To clears To.
+  const pickFrom = (day: Ymd) => {
+    setFrom(day);
+    if (to && day > to) setTo(null);
+  };
   const apply = () => {
+    if (!from || !to) return;
     const r = customRange(from, to);
-    if ("error" in r) {
-      setError(r.error);
-      return;
-    }
-    setError(null);
     setFrom(r.start); // shows a clamped start
     onSelectRange(r);
   };
@@ -76,14 +72,13 @@ export function ControlsPanel(props: Props) {
       <div className="controls-content" id="controls-content" hidden={collapsed}>
       <section className="control-group">
         <h2>Day (UTC)</h2>
-        <DatePicker label="Day" value={selected} onChange={onSelect} today={today} markedDays={ingestedDays}
-                    testId="day-picker" />
-        <p className="muted small">
-          {daysStatus === "loading" && "Loading ingested days…"}
-          {daysStatus === "error" && "Could not load the list of ingested days."}
-          {daysStatus === "success" &&
-            (ingestedDays.size === 0 ? "No day has been ingested yet." : `${ingestedDays.size} ingested day${ingestedDays.size === 1 ? "" : "s"}, marked with a dot.`)}
-        </p>
+        <DatePicker label="Day" value={selected} onChange={onSelect} today={today} testId="day-picker" />
+        {daysStatus !== "success" && (
+          <p className="muted small">
+            {daysStatus === "loading" ? "Loading ingested days…" : "Could not load the list of ingested days."}
+          </p>
+        )}
+        {daysStatus === "success" && !latest && <p className="muted small">No day has been ingested yet.</p>}
       </section>
 
       <section className="control-group" aria-label="Date range">
@@ -98,16 +93,15 @@ export function ControlsPanel(props: Props) {
             </button>
           );
         })}
-        <p className="muted small">{latest ? `${PRESETS.map((p) => p.days).join(", ")} days ending on ${latest}, the latest stored day.` : ""}</p>
         <h3>Custom range</h3>
         <div className="custom-range">
           <span className="field-label" id="range-from-label">From</span>
-          <DatePicker label="From" value={from} onChange={setFrom} today={today} compact testId="range-from" />
+          <DatePicker label="From" value={from} onChange={pickFrom} today={today} compact testId="range-from" />
           <span className="field-label" id="range-to-label">To</span>
-          <DatePicker label="To" value={to} onChange={setTo} today={today} compact testId="range-to" />
+          <DatePicker label="To" value={to} onChange={setTo} today={today} min={from ?? undefined} disabled={!from}
+                      compact testId="range-to" />
         </div>
-        {error && <p className="field-error small" role="alert" data-testid="range-error">{error}</p>}
-        <button type="button" className="range-button primary" onClick={apply}
+        <button type="button" className="range-button primary" onClick={apply} disabled={!from || !to}
                 aria-pressed={!!range && !PRESETS.some((p) => latest && sameRange(range, presetRange(latest, p.days)))}>
           Apply
         </button>

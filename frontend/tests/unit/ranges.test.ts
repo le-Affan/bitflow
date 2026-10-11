@@ -13,10 +13,9 @@ describe("preset ranges end on the latest stored day", () => {
 });
 
 describe("custom range", () => {
-  it("needs both ends in order", () => {
-    expect(customRange(null, "2020-01-01")).toHaveProperty("error");
-    expect(customRange("2020-01-02", "2020-01-01")).toHaveProperty("error");
+  it("keeps a range that starts on or after the first Bitcoin block", () => {
     expect(customRange("2020-01-01", "2020-01-01")).toEqual({ start: "2020-01-01", end: "2020-01-01" });
+    expect(customRange("2009-01-03", "2020-01-01")).toEqual({ start: "2009-01-03", end: "2020-01-01" });
   });
 
   it("moves a start before the first Bitcoin block to 2009-01-03", () => {
