@@ -16,14 +16,11 @@ async function requireGraph(request: Parameters<typeof ingestedDays>[0]) {
   return days;
 }
 
-/** Graph (model) coordinates of the point shown in the middle of the canvas. */
-async function viewCentre(page: import("@playwright/test").Page) {
-  const box = await canvasBox(page);
-  return page.evaluate(([w, h]) => {
-    const g = window.__bitflowGraph!;
-    const pan = g.pan();
-    return { x: (w / 2 - pan.x) / g.zoom(), y: (h / 2 - pan.y) / g.zoom() };
-  }, [box.width, box.height] as const);
+/** Waits until every finite CSS animation/transition (e.g. the panel sliding open) has finished. */
+async function waitForCssSettled(page: import("@playwright/test").Page) {
+  await page.waitForFunction(() => document.getAnimations()
+    .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // ignore endless spinners
+    .every((a) => a.playState !== "running"));
 }
 
 async function canvasBox(page: import("@playwright/test").Page) {
@@ -202,21 +199,24 @@ test("detail panels still open on the right with the controls panel present; the
   await page.goto("/");
   await waitForGraph(page);
   const before = await canvasBox(page);
-  const centreBefore = await viewCentre(page);
   const hub = await hubId(page);
   const p = await pointOf(page, "node", hub);
+  const zoomBefore = (await graphInfo(page)).zoom;
   await page.mouse.click(p.x, p.y);
   const panel = page.getByTestId("side-panel");
   await expect(panel).toContainText(hub);
+  await waitForCssSettled(page); // the panel slides open and the canvas shrinks with it
   const panelBox = (await panel.boundingBox())!;
   const during = await canvasBox(page);
   const controls = (await page.getByTestId("controls-panel").boundingBox())!;
   expect(panelBox.x).toBeGreaterThanOrEqual(during.x + during.width - 1); // right of the graph
   expect(controls.x + controls.width).toBeLessThanOrEqual(during.x + 1); // controls stay left
   expect(during.width).toBeLessThan(before.width); // graph area shrank
-  // The graph point that was in the middle of the view is still in the middle after the resize.
-  expect(Math.abs(centreBefore.x - (await viewCentre(page)).x)).toBeLessThan(1);
-  expect(Math.abs(centreBefore.y - (await viewCentre(page)).y)).toBeLessThan(1);
+  // Opening the panel moves nothing (decided in 185ab35): every node stays where it was on screen, same zoom.
+  const pAfter = await pointOf(page, "node", hub);
+  expect(Math.abs(pAfter.x - p.x)).toBeLessThan(1);
+  expect(Math.abs(pAfter.y - p.y)).toBeLessThan(1);
+  expect((await graphInfo(page)).zoom).toBe(zoomBefore);
   await page.screenshot({ path: `${SHOTS}/node-panel-with-controls.png` });
 
   await page.getByRole("button", { name: "Close panel" }).click();
