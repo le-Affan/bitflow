@@ -7,6 +7,8 @@ DB_MODULES = ("sqlalchemy", "psycopg", "alembic")
 HTTP_MODULES = ("httpx", "httpx2", "requests", "urllib", "http", "subprocess")
 BCI_PACKAGE = "app.sources.blockchain_info"
 COMPOSITION_ROOT = Path("ingestion/__main__.py")
+BQ_EXPORT_PACKAGE = "app.sources.bigquery_export"
+HISTORY_ROOT = Path("ingestion/history_cli.py")
 # Strings that only the blockchain.info adapter may know: host and response-format keys.
 BCI_MARKERS = ("blockchain.info", '"prev_out"', "'prev_out'", '"main_chain"', '"n_tx"', '"/block-height', "/blocks/")
 
@@ -70,3 +72,9 @@ def test_graph_module_is_pure() -> None:
     names = _imports(APP / "domain" / "graph.py")
     forbidden = DB_MODULES + HTTP_MODULES + FRAMEWORK_MODULES + ("app.repository", "app.api", "app.sources")
     assert [n for n in names if n.split(".")[0] in forbidden or n.startswith(forbidden)] == []
+
+
+def test_only_history_composition_root_imports_bigquery_export_adapter() -> None:
+    offenders = [f"{rel}: {n}" for path, rel in _files("sources/bigquery_export/") for n in _imports(path)
+                 if n.startswith(BQ_EXPORT_PACKAGE) and rel != HISTORY_ROOT]
+    assert offenders == []
