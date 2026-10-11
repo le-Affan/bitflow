@@ -1,8 +1,10 @@
-"""Ingest one UTC day from the command line.
+"""Ingest from the command line.
 
-    python -m app.ingestion --date YYYY-MM-DD
+    python -m app.ingestion --date YYYY-MM-DD   one UTC day
+    python -m app.ingestion catch-up            every missing complete day up to yesterday (see catchup.py)
 
-Exit codes: 0 stored, 1 ingestion failed (nothing stored), 2 invalid date, 3 rate limited (stopped).
+Exit codes: 0 stored (catch-up: nothing failed, including nothing to do), 1 ingestion failed (nothing stored for
+that day), 2 invalid date, 3 rate limited (stopped).
 """
 import argparse
 import logging
@@ -12,6 +14,7 @@ from dataclasses import asdict
 from datetime import date
 
 from app.config import database_url, ingestion_settings
+from app.ingestion.catchup import catch_up
 from app.ingestion.core import IngestionError, InvalidTargetDayError, ingest_day
 from app.ingestion.source import RateLimitedError, SourceError
 from app.repository.postgres import PostgresDayRepository
@@ -23,9 +26,12 @@ log = logging.getLogger("bitflow.ingestion")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m app.ingestion", description="Ingest one UTC day.")
-    parser.add_argument("--date", required=True, type=date.fromisoformat, help="target UTC day, YYYY-MM-DD")
+    parser = argparse.ArgumentParser(prog="python -m app.ingestion", description="Ingest one UTC day, or catch up.")
+    parser.add_argument("command", nargs="?", choices=["catch-up"], help="ingest every missing day up to yesterday")
+    parser.add_argument("--date", type=date.fromisoformat, help="target UTC day, YYYY-MM-DD")
     args = parser.parse_args(argv)
+    if (args.command is None) == (args.date is None):
+        parser.error("give either --date YYYY-MM-DD or catch-up")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     settings = ingestion_settings()
@@ -39,6 +45,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     source = BlockchainInfoSource(client)
     repository = PostgresDayRepository.from_url(database_url())
+    if args.command == "catch-up":
+        try:
+            result = catch_up(source, repository, margin=settings["margin_blocks"])
+        finally:
+            client.close()
+        return 3 if result.rate_limited else 1 if result.failed else 0
     log.info("ingesting %s with %s", args.date, settings)
     try:
         report = ingest_day(args.date, source, repository, margin=settings["margin_blocks"])
