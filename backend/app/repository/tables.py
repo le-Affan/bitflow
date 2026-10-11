@@ -40,3 +40,10 @@ tx_outputs = Table(
     Column("address", String, nullable=False),
     Column("value_sat", BigInteger, nullable=False),
 )
+
+checked_empty_days = Table(
+    "checked_empty_days",
+    metadata,
+    Column("day", Date, primary_key=True),
+    Column("checked_at", DateTime(timezone=True), nullable=False),
+)

@@ -52,14 +52,31 @@ def _day_transactions(repo: DayRepository, day: date | None) -> tuple[IngestedDa
     return ingested, repo.get_day_transactions(ingested.day)
 
 
+EMPTY_DAY_STATUS = "no_eligible_transactions"
+
+
+def _empty_day(repo: DayRepository, day: date | None) -> date | None:
+    """`day` if it is not stored but was checked and had 0 eligible transactions, else None."""
+    if day is None or any(d.day == day for d in repo.list_ingested_days()):
+        return None
+    return day if repo.is_day_empty(day) else None
+
+
+def _empty_day_not_found(kind: str, what: str, day: date) -> HTTPException:
+    return _not_found(kind, f"{what} on {day.isoformat()}: that day had no eligible transactions.")
+
+
 @router.get("/days", response_model=list[DayOut])
 def list_days(repo: Repo) -> list[DayOut]:
     days = sorted(repo.list_ingested_days(), key=lambda d: d.day, reverse=True)
     return [DayOut(date=d.day, transaction_count=d.transaction_count, ingested_at=d.ingested_at) for d in days]
 
 
-@router.get("/graph", response_model=GraphOut)
+@router.get("/graph", response_model=GraphOut, response_model_exclude_none=True)
 def get_graph(repo: Repo, day: Annotated[date | None, Query(description="UTC day; latest if omitted")] = None):
+    empty = _empty_day(repo, day)
+    if empty:
+        return GraphOut(day=empty, transaction_count=0, nodes=[], edges=[], status=EMPTY_DAY_STATUS)
     ingested, txs = _day_transactions(repo, day)
     graph = build_graph(txs)
     return GraphOut(
@@ -72,6 +89,8 @@ def get_graph(repo: Repo, day: Annotated[date | None, Query(description="UTC day
 
 @router.get("/addresses/{address}", response_model=AddressOut)
 def get_address(address: str, repo: Repo, day: DayParam):
+    if _empty_day(repo, day):
+        raise _empty_day_not_found("address_not_in_graph", f"Address {address} is not in the graph", day)
     ingested, txs = _day_transactions(repo, day)
     summary = address_summary(txs, address)
     if summary is None:
@@ -92,6 +111,8 @@ def get_edge(
     source: Annotated[str, Query(min_length=1)],
     target: Annotated[str, Query(min_length=1)],
 ):
+    if _empty_day(repo, day):
+        raise _empty_day_not_found("edge_not_found", f"No edge {source} -> {target}", day)
     ingested, txs = _day_transactions(repo, day)
     rows = edge_transactions(txs, source, target)
     if not rows:
@@ -112,6 +133,8 @@ def get_edge(
 
 @router.get("/transactions/{txid}", response_model=TransactionOut)
 def get_transaction(txid: str, repo: Repo, day: DayParam):
+    if _empty_day(repo, day):
+        raise _empty_day_not_found("transaction_not_found", f"Transaction {txid} is not stored", day)
     ingested, txs = _day_transactions(repo, day)
     tx = next((t for t in txs if t.txid == txid), None)
     if tx is None:

@@ -251,3 +251,6 @@ frontend/playwright-report/
 scripts/bigquery_history/cache/
 scripts/bigquery_history/ledger.jsonl
 scripts/bigquery_history/state.json
+
+# Database backups (not committed)
+scripts/backups/

@@ -30,6 +30,9 @@ class GraphOut(BaseModel):
     transaction_count: int
     nodes: list[NodeOut]
     edges: list[EdgeOut]
+    # Only set for a day that was checked and had 0 eligible transactions ("no_eligible_transactions"); omitted for
+    # stored days, so their response is unchanged.
+    status: str | None = None
 
 
 class AddressOut(BaseModel):

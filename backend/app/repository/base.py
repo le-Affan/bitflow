@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Iterable, Protocol, Sequence, runtime_checkable
 
 from app.domain.models import IngestedDay, Transaction
 
@@ -25,4 +25,17 @@ class DayRepository(Protocol):
 
     def get_day_transactions(self, day: date) -> list[Transaction]:
         """Stored transactions of `day` with their inputs and outputs. Empty if `day` is not ingested."""
+        ...
+
+    def record_empty_days(self, days: Iterable[date]) -> int:
+        """Record days that were checked and had 0 eligible transactions. Days already recorded or already
+        ingested are left alone (never duplicated). Returns how many days were newly recorded."""
+        ...
+
+    def is_day_empty(self, day: date) -> bool:
+        """True if `day` was checked and had 0 eligible transactions."""
+        ...
+
+    def list_empty_days(self) -> list[date]:
+        """All checked empty days, oldest first."""
         ...

@@ -1,11 +1,12 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
-from typing import Sequence
+from typing import Iterable, Sequence
 
-from sqlalchemy import Engine, create_engine, delete, insert, select
+from sqlalchemy import Engine, create_engine, delete, exists, insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.domain.models import DayStatus, IngestedDay, Transaction, TxInput, TxOutput
-from app.repository.tables import ingested_days, transactions, tx_inputs, tx_outputs
+from app.repository.tables import checked_empty_days, ingested_days, transactions, tx_inputs, tx_outputs
 
 
 class PostgresDayRepository:
@@ -100,6 +101,32 @@ class PostgresDayRepository:
             )
             for r in tx_rows
         ]
+
+
+    def record_empty_days(self, days: Iterable[date]) -> int:
+        days = sorted(set(days))
+        if not days:
+            return 0
+        now = datetime.now(timezone.utc)
+        with self._engine.begin() as conn:
+            stored = set(conn.execute(select(ingested_days.c.day).where(ingested_days.c.day.in_(days))).scalars())
+            rows = [{"day": d, "checked_at": now} for d in days if d not in stored]
+            if not rows:
+                return 0
+            inserted = conn.execute(
+                pg_insert(checked_empty_days).values(rows)
+                .on_conflict_do_nothing(index_elements=["day"])
+                .returning(checked_empty_days.c.day)
+            ).scalars().all()  # rows actually inserted (rowcount is -1 for this kind of bulk insert)
+            return len(inserted)
+
+    def is_day_empty(self, day: date) -> bool:
+        with self._engine.connect() as conn:
+            return bool(conn.execute(select(exists().where(checked_empty_days.c.day == day))).scalar())
+
+    def list_empty_days(self) -> list[date]:
+        with self._engine.connect() as conn:
+            return list(conn.execute(select(checked_empty_days.c.day).order_by(checked_empty_days.c.day)).scalars())
 
 
 def _to_day(row) -> IngestedDay:

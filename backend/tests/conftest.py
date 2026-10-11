@@ -44,5 +44,5 @@ def repo(db_engine):
     from app.repository.postgres import PostgresDayRepository
 
     with db_engine.begin() as conn:
-        conn.execute(text("TRUNCATE ingested_days, transactions, tx_inputs, tx_outputs"))
+        conn.execute(text("TRUNCATE ingested_days, transactions, tx_inputs, tx_outputs, checked_empty_days"))
     return PostgresDayRepository(db_engine)
