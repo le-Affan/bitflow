@@ -259,3 +259,4 @@ scripts/backups/
 # (seed/README.md) so Docker never creates it as root when it is bind-mounted.
 seed/*
 !seed/README.md
+scripts/secret_audit.md

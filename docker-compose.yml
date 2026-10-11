@@ -1,7 +1,8 @@
 name: bitflow
 
 # `docker compose up -d` starts: postgres -> db-init (seeds an empty database once) -> migrate -> backend, scheduler,
-# frontend. Settings come from .env (see .env.example).
+# frontend. Every setting has a default here (local use); a .env file is optional and only overrides them
+# (see .env.example, which lists the same defaults).
 
 x-backend-build: &backend-build
   context: ./backend
@@ -9,7 +10,7 @@ x-backend-build: &backend-build
   target: base
 
 x-backend-env: &backend-env
-  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-bitflow}:${POSTGRES_PASSWORD:-bitflow}@postgres:5432/${POSTGRES_DB:-bitflow}
   BLOCKCHAIN_INFO_BASE_URL: ${BLOCKCHAIN_INFO_BASE_URL:-}
   INGEST_REQUEST_PAUSE_SECONDS: ${INGEST_REQUEST_PAUSE_SECONDS:-}
   INGEST_MAX_RETRIES: ${INGEST_MAX_RETRIES:-}
@@ -23,9 +24,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-bitflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bitflow}
+      POSTGRES_DB: ${POSTGRES_DB:-bitflow}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     # Not published on the host: use `docker compose exec postgres psql -U <user> -d <db>`.
@@ -40,9 +41,9 @@ services:
   db-init:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-bitflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bitflow}
+      POSTGRES_DB: ${POSTGRES_DB:-bitflow}
     volumes:
       - ./seed:/seed:ro,z
       - ./docker/db-init.sh:/db-init.sh:ro,z
@@ -65,7 +66,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-env
-      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://127.0.0.1:${FRONTEND_HOST_PORT:-3000},http://localhost:${FRONTEND_HOST_PORT:-3000},http://127.0.0.1:${FRONTEND_E2E_HOST_PORT:-3100}}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
     depends_on:
@@ -93,7 +94,7 @@ services:
       dockerfile: ../docker/backend.Dockerfile
       target: test
     environment:
-      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_TEST_DB:-bitflow_test}
+      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-bitflow}:${POSTGRES_PASSWORD:-bitflow}@postgres:5432/${POSTGRES_TEST_DB:-bitflow_test}
     volumes:
       - ./backend:/app:z
     depends_on:
@@ -108,7 +109,7 @@ services:
       target: serve
       args:
         # Baked into the static build: the URL the browser uses to reach the backend.
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:${BACKEND_HOST_PORT:-8000}}
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:80"
     depends_on:
@@ -130,7 +131,7 @@ services:
       dockerfile: ../docker/frontend.Dockerfile
       target: serve
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:${BACKEND_HOST_PORT:-8000}}
         VITE_E2E_INSPECTOR: "true"
     ports:
       - "127.0.0.1:${FRONTEND_E2E_HOST_PORT:-3100}:80"
@@ -151,7 +152,7 @@ services:
       E2E_BASE_URL: http://127.0.0.1:${FRONTEND_E2E_HOST_PORT:-3100}
       # "1" = mock every API call as "no day ingested" (checks the suite does not depend on stored data).
       E2E_MOCK_EMPTY_API: ${E2E_MOCK_EMPTY_API:-}
-      E2E_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+      E2E_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:${BACKEND_HOST_PORT:-8000}}
     volumes:
       - ./frontend:/work:z
     command: ["npx", "playwright", "test"]

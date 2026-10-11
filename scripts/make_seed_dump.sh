@@ -5,7 +5,8 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p seed
 tmp=seed/bitflow.dump.partial
-docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$tmp"
+# The postgres container always has POSTGRES_USER/POSTGRES_DB (compose defaults or .env); no .env needed here.
+docker compose exec -T postgres sh -c 'pg_dump -U "${POSTGRES_USER:-bitflow}" -d "${POSTGRES_DB:-bitflow}" -Fc' > "$tmp"
 mv "$tmp" seed/bitflow.dump
 echo "seed/bitflow.dump written: $(du -h seed/bitflow.dump | cut -f1)"
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) || '"' days, latest '"' || max(day) FROM ingested_days"'
+docker compose exec -T postgres sh -c 'psql -U "${POSTGRES_USER:-bitflow}" -d "${POSTGRES_DB:-bitflow}" -Atc "SELECT count(*) || '"' days, latest '"' || max(day) FROM ingested_days"'

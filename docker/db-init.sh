@@ -2,7 +2,9 @@
 # One-shot, before migrations (the `db-init` service): seed an EMPTY database from /seed/bitflow.dump.
 # Never touches a database that already has tables, so it only ever seeds the first start.
 set -eu
-export PGHOST=postgres PGUSER="$POSTGRES_USER" PGPASSWORD="$POSTGRES_PASSWORD" PGDATABASE="$POSTGRES_DB"
+# Same defaults as docker-compose.yml, so this also works when a variable is unset.
+export PGHOST=postgres PGUSER="${POSTGRES_USER:-bitflow}" PGPASSWORD="${POSTGRES_PASSWORD:-bitflow}" \
+  PGDATABASE="${POSTGRES_DB:-bitflow}"
 DUMP=/seed/bitflow.dump
 
 tables=$(psql -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")

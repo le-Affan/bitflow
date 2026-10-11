@@ -13,17 +13,16 @@ You need Docker with Docker Compose v2 (Docker Desktop, or Docker Engine plus th
 
 1. Get the project and open a terminal in its folder.
 2. Put the shared database dump into the `seed/` folder as `seed/bitflow.dump`. It is not in the repository; you get it separately. Without it the app starts with an empty database (see below).
-3. Create your settings file and set a database password:
-   ```sh
-   cp .env.example .env
-   # edit .env: set POSTGRES_PASSWORD to any password you like
-   ```
-4. Start everything:
+3. Start everything:
    ```sh
    docker compose up -d --build
    ```
    This starts the database, restores `seed/bitflow.dump` into it (first start only), updates the schema, then starts the backend, the frontend and the scheduler.
-5. Open **http://127.0.0.1:3000** (or the `FRONTEND_HOST_PORT` you set in `.env`).
+4. Open **http://127.0.0.1:3000**.
+
+No `.env` file is needed: every setting has a default in `docker-compose.yml`. To override some (other ports, another daily time, a different database password), copy `.env.example` to `.env` and uncomment the lines you need; `.env` takes priority over the defaults.
+
+> **Defaults are for local use.** The database password defaults to `bitflow`: change `POSTGRES_PASSWORD` (in `.env`) before any real deployment. The database itself is not published on the host; only the frontend (3000) and the backend API (8000) are, on 127.0.0.1.
 
 Useful commands:
 
@@ -44,7 +43,7 @@ How it behaves:
 - **The app stays usable** while a catch-up runs; it serves the days already stored.
 - **A failed day changes nothing.** Each day is stored all-or-nothing; on a failure the catch-up stops and the next run retries from that day.
 - **Without a seed file** the app starts empty and the scheduler ingests days from 2026-10-09 on, one by one (slow, see below). To use a dump later: `docker compose down -v`, put the file in `seed/`, start again.
-- **Ports** are bound to 127.0.0.1 only. Change `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` in `.env` if they are taken; when you change the frontend port or `VITE_API_BASE_URL`, also update `CORS_ALLOW_ORIGINS` and rebuild (`docker compose up -d --build`).
+- **Ports** are bound to 127.0.0.1 only. If 3000 or 8000 is taken, set `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` in `.env` and rebuild (`docker compose up -d --build`); the default CORS origins and API URL follow those ports.
 
 ### How long things take
 
@@ -68,6 +67,6 @@ The same setup runs on any host or cloud that can run containers. What you need,
 
 - The images built from `docker-compose.yml`: backend (also used for the one-shot `migrate` step and the `scheduler`), frontend (static files served by nginx) and the one-shot `db-init` seeding step (plain `postgres:17-alpine` with `docker/db-init.sh`).
 - A PostgreSQL 17 database; the backend gets it as `DATABASE_URL` (see `docker-compose.yml` for the format).
-- The environment variables from `.env.example`. Set `VITE_API_BASE_URL` to the public URL of the backend before building the frontend image (it is baked into the static build), and `CORS_ALLOW_ORIGINS` to the public URL of the frontend.
+- The environment variables listed in `.env.example` (all have local defaults; set a real `POSTGRES_PASSWORD`). Set `VITE_API_BASE_URL` to the public URL of the backend before building the frontend image (it is baked into the static build), and `CORS_ALLOW_ORIGINS` to the public URL of the frontend.
 - The seed dump restored once into the empty database (what `db-init` does), then `alembic upgrade head` (what `migrate` does).
 - A daily trigger that runs `python -m app.ingestion catch-up` in the backend image (the `scheduler` container does this; a cron job or a scheduled task works too). It is safe to run more often: with nothing missing it does nothing and exits 0. Exit code 1 = a day failed (retried next run), 3 = rate limited.
